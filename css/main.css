@@ -713,7 +713,7 @@ body {
     }
     .section.fullpage {
         height: calc(var(--vh, 1vh) * 100);
-        height: clac(100vh + 80px);
+        overflow: visible;
     }
     .section.fullpage.mo_snap_none {
         margin-top: 50px;

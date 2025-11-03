@@ -272,7 +272,7 @@ body {
     justify-content: flex-end;
     position: relative;
     height: 56.25em; /* 900px */
-    height: 100vh;
+    height: 100vh !important;
     width: 100vw;
     color: var(--wt);
     background-color: var(--bk) !important;

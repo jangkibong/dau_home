@@ -2,7 +2,6 @@
 body {
     -ms-overflow-style: none;
     font-size: 0.833331vw; /* 1920px 기준 16px */
-    scroll-behavior: auto; /* 부드럽게 이동 */
 }
 ::-webkit-scrollbar {
     display: none;
@@ -82,7 +81,6 @@ body {
     opacity: 1;
 }
 .section .intro_content {
-    background-color: red;
     width: 100%;
     height: 100%;
     position: absolute;
@@ -121,8 +119,8 @@ body {
 #fullpage .fullpage_track {
     width: 100%;
     height: 100%;
-    transition: transform 700ms ease; /* 스냅 이동 애니메이션 */
-    will-change: transform;
+    /* transition: transform 700ms ease; 스냅 이동 애니메이션 */
+    /* will-change: transform; */
 }
 
 #fullpage .section {

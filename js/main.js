@@ -136,320 +136,172 @@
         animation: ani1,
         trigger: "#intro",
         start: "top top",
-        end: "+=1500",
+        end: "+=2000",
         scrub: true,
         pin: true,
         anticipatePin: 1,
         markers: false,
     });
 
-    // =========================================================
-    // 2) Sub Visual - gsap (핀 고정) + Swiper
-    // =========================================================
+    /* =========================================================
+     * Sub Visual
+     * =======================================================*/
     const ani2 = gsap.timeline();
-    let isOverviewPinned = false; // 핀 상태 플래그
-
     ScrollTrigger.create({
-        id: "overviewPin",
         animation: ani2,
         trigger: "#overview",
         start: "top top",
-        end: "+=1000",
+        end: "+=2000",
         scrub: true,
         pin: true,
         anticipatePin: 1,
-        markers: false,
-        onEnter() {
-            isOverviewPinned = true;
-            toggleSlideLockAll(true);
-            MomentumKiller.freeze(700);
-        },
-        onEnterBack() {
-            isOverviewPinned = true;
-            toggleSlideLockAll(true);
-            MomentumKiller.freeze(700);
-        },
-        onLeave() {
-            isOverviewPinned = false;
-            toggleSlideLockAll(false);
-        },
-        onLeaveBack() {
-            isOverviewPinned = false;
-            toggleSlideLockAll(false);
-        },
     });
 
-    (function SubVisualTickMode() {
-        // --------------------------------------------
-        // Helpers
-        // --------------------------------------------
-        const isMiddle = (sw) => !(sw.isBeginning || sw.isEnd);
-
-        function upgradeToSwiperDOM($container) {
-            if ($container.children(".swiper-wrapper").length) {
-                return $container.find(".swiper-slide").toArray();
-            }
-            $container.addClass("swiper");
-            const $items = $container.find(".sub_visual_item");
-            const wrapper = document.createElement("div");
-            wrapper.className = "swiper-wrapper";
-            $items.each(function (_, el) {
-                const slide = document.createElement("div");
-                slide.className = "swiper-slide";
-                el.parentNode.insertBefore(slide, el);
-                slide.appendChild(el);
-                wrapper.appendChild(slide);
-            });
-            $container.append(wrapper);
-            return Array.from($container.find(".swiper-slide"));
+    // --------------------------------------------
+    // Helpers (DOM 보강, a11y, 인디케이터 페이드)
+    // --------------------------------------------
+    function upgradeToSwiperDOM($container) {
+        if ($container.children(".swiper-wrapper").length) {
+            return $container.find(".swiper-slide").toArray();
         }
-
-        function decorateIndicatorsA11y($wrap, $indicators, slideEls) {
-            $wrap.attr({ role: "tablist", "aria-label": "섹션 슬라이드 인디케이터" });
-            $indicators.each(function (idx) {
-                $(this)
-                    .attr({
-                        role: "tab",
-                        tabindex: idx === 0 ? "0" : "-1",
-                        "aria-selected": idx === 0 ? "true" : "false",
-                    })
-                    .css("opacity", idx === 0 ? 1 : 0);
-            });
-        }
-
-        function fadeSetIndicator($indicators, activeIndex, immediate) {
-            const DURATION = 280;
-            $indicators.each(function (idx) {
-                const $it = $(this);
-                const isActive = idx === activeIndex;
-                $it.toggleClass("is-active", isActive)
-                    .attr("aria-selected", isActive ? "true" : "false")
-                    .attr("tabindex", isActive ? "0" : "-1");
-                const toOpacity = isActive ? 1 : 0;
-                if (immediate) $it.stop(true, true).css("opacity", toOpacity);
-                else $it.stop(true, true).animate({ opacity: toOpacity }, DURATION, "swing");
-            });
-        }
-
-        const getActiveIndex = (sw) =>
-            (sw && (typeof sw.realIndex === "number" ? sw.realIndex : sw.activeIndex)) || 0;
-
-        // 섹션별 언락 함수 저장
-        const sectionLocks = new Map(); // key: HTMLElement(section), value: unlockFn + .swiper
-
-        // overview 핀 변화에 따라 모든 섹션 락/언락
-        window.toggleSlideLockAll = function (enable) {
-            sectionLocks.forEach((unlock, sectionEl) => {
-                unlock?.(); // 기존 바인딩 제거
-                if (enable) lockScrollToSlides($(sectionEl), sectionLocks.get(sectionEl).swiper);
-            });
-        };
-
-        // --------------------------------------------
-        // 한 칸씩 전환 + 조건부 스크롤 허용
-        // --------------------------------------------
-        function lockScrollToSlides($section, swiper) {
-            const NS = ".svTick";
-            const speed = swiper.params.speed || 600;
-
-            // 중간 슬라이드 판정
-            const isMiddle = (sw) => !(sw.isBeginning || sw.isEnd);
-            // 전환중 판정 (Swiper 10+/11)
-            const isBusy = () => !!swiper.animating;
-
-            // 휠 델타 정규화(px) + 누적
-            let wheelAcc = 0;
-            const WHEEL_ACTIVATION = 60; // 트랙패드에서 너무 예민하지 않도록
-            function normWheelDelta(oe) {
-                let dy = oe.deltaY || 0;
-                // 0: pixel, 1: line, 2: page
-                if (oe.deltaMode === 1) dy *= 16;
-                else if (oe.deltaMode === 2) dy *= window.innerHeight;
-                return dy;
-            }
-
-            // 터치 시작/이동
-            let tStartY = 0;
-            let touchAcc = 0;
-            const TOUCH_ACTIVATION = 24;
-
-            // 기존 바인딩 해제
-            const secEl = $section.get(0);
-            $section.off("touchstart" + NS).off("keydown" + NS);
-            // native로 건 건 직접 remove 필요하므로 핸들러를 변수로 보존
-            if (secEl.__wheelHandler) secEl.removeEventListener("wheel", secEl.__wheelHandler);
-            if (secEl.__touchMoveHandler)
-                secEl.removeEventListener("touchmove", secEl.__touchMoveHandler);
-
-            if (!isOverviewPinned) return; // 핀이 아닐 땐 섹션 스크롤을 방해하지 않음
-
-            // 동적 touch-action (중간 슬라이드일 때만 스크롤 차단 강화)
-            function applyTouchAction() {
-                secEl.style.touchAction = isMiddle(swiper) ? "none" : "auto";
-            }
-            applyTouchAction();
-
-            // ========== WHEEL ==========
-            secEl.__wheelHandler = function (e) {
-                const oe = e; // native
-                const dy = normWheelDelta(oe);
-
-                // 중간 슬라이드면 페이지 스크롤은 항상 차단
-                if (isMiddle(swiper)) e.preventDefault();
-
-                if (isBusy() || dy === 0) return;
-
-                wheelAcc += dy;
-                if (Math.abs(wheelAcc) < WHEEL_ACTIVATION) return;
-
-                const dirDown = wheelAcc > 0;
-                wheelAcc = 0;
-
-                if (dirDown) {
-                    if (swiper.isEnd) {
-                        // 마지막이면 아래로는 통과 (차단하지 않음)
-                        return;
-                    }
-                    e.preventDefault();
-                    swiper.slideNext(speed);
-                } else {
-                    if (swiper.isBeginning) {
-                        // 처음이면 위로는 통과
-                        return;
-                    }
-                    e.preventDefault();
-                    swiper.slidePrev(speed);
-                }
-                // 전환 끝나면 touch-action 재평가
-                swiper.once("slideChangeTransitionEnd", applyTouchAction);
-            };
-            // passive:false 로 반드시 등록
-            secEl.addEventListener("wheel", secEl.__wheelHandler, { passive: false });
-
-            // ========== TOUCH ==========
-            $section.on("touchstart" + NS, function (e) {
-                const t = e.originalEvent.touches && e.originalEvent.touches[0];
-                tStartY = t ? t.clientY : 0;
-                touchAcc = 0;
-            });
-
-            secEl.__touchMoveHandler = function (e) {
-                const t = e.touches && e.touches[0];
-                if (!t || isBusy()) return;
-
-                const dy = tStartY - t.clientY; // 양수: 아래로 드래그
-                // 중간 슬라이드면 항상 차단 시도
-                if (isMiddle(swiper)) e.preventDefault();
-
-                touchAcc += dy;
-                if (Math.abs(touchAcc) < TOUCH_ACTIVATION) return;
-
-                const dirDown = touchAcc > 0;
-                touchAcc = 0;
-                tStartY = t.clientY;
-
-                if (dirDown) {
-                    if (swiper.isEnd) return; // 통과
-                    e.preventDefault();
-                    swiper.slideNext(speed);
-                } else {
-                    if (swiper.isBeginning) return; // 통과
-                    e.preventDefault();
-                    swiper.slidePrev(speed);
-                }
-                swiper.once("slideChangeTransitionEnd", applyTouchAction);
-            };
-            secEl.addEventListener("touchmove", secEl.__touchMoveHandler, { passive: false });
-
-            // ========== KEYBOARD (옵션) ==========
-            $section.attr("tabindex", "-1").on("keydown" + NS, function (e) {
-                if (!isOverviewPinned || isBusy()) return;
-
-                const downKeys = ["ArrowDown", "PageDown", " ", "Spacebar"];
-                const upKeys = ["ArrowUp", "PageUp"];
-
-                if (isMiddle(swiper) && (downKeys.includes(e.key) || upKeys.includes(e.key))) {
-                    e.preventDefault();
-                }
-
-                if (downKeys.includes(e.key)) {
-                    if (swiper.isEnd) return;
-                    e.preventDefault();
-                    swiper.slideNext(speed);
-                } else if (upKeys.includes(e.key)) {
-                    if (swiper.isBeginning) return;
-                    e.preventDefault();
-                    swiper.slidePrev(speed);
-                }
-                swiper.once("slideChangeTransitionEnd", applyTouchAction);
-            });
-
-            // 언락 저장 (기존 구조 유지)
-            const unlock = function () {
-                $section.off("touchstart" + NS).off("keydown" + NS);
-                if (secEl.__wheelHandler) {
-                    secEl.removeEventListener("wheel", secEl.__wheelHandler);
-                    secEl.__wheelHandler = null;
-                }
-                if (secEl.__touchMoveHandler) {
-                    secEl.removeEventListener("touchmove", secEl.__touchMoveHandler);
-                    secEl.__touchMoveHandler = null;
-                }
-                secEl.style.touchAction = ""; // 복원
-            };
-            unlock.swiper = swiper;
-            sectionLocks.set($section[0], unlock);
-        }
-
-        // --------------------------------------------
-        // Init
-        // --------------------------------------------
-        $(function () {
-            $(".sub_visual").each(function () {
-                const $host = $(this);
-                const $section = $host.closest("section").length ? $host.closest("section") : $host;
-                const $container = $host.find(".sub_visual_content");
-                const $titlesWrap = $host.find(".sub_titles_wrap");
-                const $indicators = $titlesWrap.find(".sub_tilte_wrap");
-                if (!$container.length || !$indicators.length) return;
-
-                const slideEls = upgradeToSwiperDOM($container);
-                decorateIndicatorsA11y($titlesWrap, $indicators, slideEls);
-
-                const swiper = new Swiper($container.get(0), {
-                    direction: "vertical",
-                    effect: "slide",
-                    speed: 600,
-                    allowTouchMove: false, // 제스처는 막고, 휠/터치로만 넘김
-                    loop: false,
-                    mousewheel: false,
-                    observeParents: true,
-                    observer: true,
-                    resistanceRatio: 0,
-                    touchReleaseOnEdges: true,
-                    on: {
-                        afterInit(sw) {
-                            fadeSetIndicator($indicators, getActiveIndex(sw), true);
-                        },
-                        slideChange(sw) {
-                            fadeSetIndicator($indicators, getActiveIndex(sw));
-                        },
-                    },
-                });
-
-                // 섹션 단위로 락 세팅 (현 pin 상태에 따라 즉시/대기)
-                sectionLocks.set($section[0], function () {});
-                sectionLocks.get($section[0]).swiper = swiper;
-                if (isOverviewPinned) lockScrollToSlides($section, swiper);
-
-                // ScrollTrigger가 refresh로 레이아웃 재계산 시 바인딩도 갱신
-                ScrollTrigger.addEventListener("refresh", () => {
-                    sectionLocks.get($section[0])?.(); // 언락
-                    if (isOverviewPinned) lockScrollToSlides($section, swiper);
-                });
-            });
+        $container.addClass("swiper");
+        const $items = $container.find(".sub_visual_item");
+        const wrapper = document.createElement("div");
+        wrapper.className = "swiper-wrapper";
+        $items.each(function (_, el) {
+            const slide = document.createElement("div");
+            slide.className = "swiper-slide";
+            el.parentNode.insertBefore(slide, el);
+            slide.appendChild(el);
+            wrapper.appendChild(slide);
         });
-    })();
+        $container.append(wrapper);
+        return Array.from($container.find(".swiper-slide"));
+    }
+
+    function decorateIndicatorsA11y($wrap, $indicators) {
+        $wrap.attr({ role: "tablist", "aria-label": "섹션 슬라이드 인디케이터" });
+        $indicators.each(function (idx) {
+            $(this)
+                .attr({
+                    role: "tab",
+                    tabindex: idx === 0 ? "0" : "-1",
+                    "aria-selected": idx === 0 ? "true" : "false",
+                })
+                .css("opacity", idx === 0 ? 1 : 0);
+        });
+    }
+
+    function fadeSetIndicator($indicators, activeIndex, immediate) {
+        const DURATION = 280;
+        $indicators.each(function (idx) {
+            const $it = $(this);
+            const isActive = idx === activeIndex;
+            $it.toggleClass("is-active", isActive)
+                .attr("aria-selected", isActive ? "true" : "false")
+                .attr("tabindex", isActive ? "0" : "-1");
+            const toOpacity = isActive ? 1 : 0;
+            if (immediate) $it.stop(true, true).css("opacity", toOpacity);
+            else $it.stop(true, true).animate({ opacity: toOpacity }, DURATION, "swing");
+        });
+    }
+
+    const getActiveIndex = (sw) =>
+        (sw && (typeof sw.realIndex === "number" ? sw.realIndex : sw.activeIndex)) || 0;
+
+    $(function () {
+        $(".sub_visual").each(function () {
+            const $host = $(this);
+            const $container = $host.find(".sub_visual_content");
+            const $titlesWrap = $host.find(".sub_titles_wrap");
+            const $indicators = $titlesWrap.find(".sub_tilte_wrap");
+            if (!$container.length || !$indicators.length) return;
+
+            const slideEls = upgradeToSwiperDOM($container);
+            decorateIndicatorsA11y($titlesWrap, $indicators, slideEls);
+
+            // ===== Swiper (세로) : GSAP 단독 제어를 위해 제스처/휠 OFF =====
+            const swiper = new Swiper($container.get(0), {
+                direction: "vertical",
+                effect: "slide",
+                speed: 600,
+                loop: false,
+                allowTouchMove: false, // 스와이프 제스처 끔 (GSAP만으로 넘김)
+                // mousewheel은 완전히 비활성화(충돌 방지)
+                mousewheel: false,
+                resistanceRatio: 0, // 끝에서 바운스 제거
+                touchReleaseOnEdges: true,
+                observeParents: true,
+                observer: true,
+                on: {
+                    afterInit(sw) {
+                        fadeSetIndicator($indicators, getActiveIndex(sw), true);
+                    },
+                    slideChange(sw) {
+                        fadeSetIndicator($indicators, getActiveIndex(sw));
+                    },
+                },
+            });
+
+            // 인디케이터 클릭/키보드 이동은 유지 (원하면 스크롤 진행도도 동기화 가능)
+            $indicators
+                .on("click", function () {
+                    const idx = $(this).index();
+                    swiper.slideTo(idx, 600);
+                })
+                .on("keydown", function (e) {
+                    const idx = $(this).index();
+                    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                        e.preventDefault();
+                        swiper.slideTo(idx, 600);
+                    }
+                });
+
+            // ===== ScrollTrigger(핀 없음) : 진행도→슬라이드 인덱스 =====
+            // 총 4장일 때 0%, 25%, 50%, 75%, 100%에서 0,1,2,3으로 스냅
+            const TOTAL = 4; // ★ 페이지 수(원하면 slideEls.length로 교체 가능)
+            const MAX_INDEX = TOTAL - 1;
+            let lastIdx = -1;
+
+            ScrollTrigger.create({
+                trigger: "#overview",
+                start: "top top",
+                end: "+=2000",
+                scrub: true,
+                // 핀은 위의 첫 번째 ST가 담당 → 여기서는 pin 주지 않음
+                // markers: true,
+                // 스냅: 0, .25, .5, .75, 1.0
+                snap: {
+                    snapTo: (value) => gsap.utils.snap(1 / MAX_INDEX)(value),
+                    duration: 0.35,
+                    ease: "power1.out",
+                },
+                onUpdate(self) {
+                    // 진행도(0~1) → 인덱스 (25%마다 1씩 증가)
+                    // 소수 경계에서 떨림 방지용 EPS
+                    const EPS = 1e-6;
+                    let idx = Math.floor((self.progress + EPS) * TOTAL);
+                    if (idx > MAX_INDEX) idx = MAX_INDEX;
+                    if (idx !== lastIdx) {
+                        lastIdx = idx;
+                        swiper.slideTo(idx, 600, false); // GSAP 트리거로만 넘김
+                    }
+                },
+                onRefresh(self) {
+                    self.update();
+                },
+            });
+
+            // 레이아웃 변경 대응
+            let raf;
+            const safeRefresh = () => {
+                cancelAnimationFrame(raf);
+                raf = requestAnimationFrame(() => ScrollTrigger.refresh());
+            };
+            window.addEventListener("resize", safeRefresh);
+            window.addEventListener("orientationchange", safeRefresh);
+        });
+    });
 
     /* =========================================================
      * 3) project Swiper - gsap (핀 고정) + Swiper
@@ -460,7 +312,7 @@
         animation: ani3,
         trigger: "#project_wrap",
         start: "top top",
-        end: "+=700",
+        end: "+=1000",
         scrub: true,
         pin: true,
         anticipatePin: 1,
@@ -494,7 +346,7 @@
             ScrollTrigger.create({
                 trigger: "#project_wrap",
                 start: "top top",
-                end: "+=700",
+                end: "+=1000",
                 // pin: true  // ← 애니메이션용 ST에서 이미 pin을 쓰고 있으므로 여기서는 생략
                 onEnter: handleEnterLikePin,
                 onEnterBack: handleEnterLikePin,
@@ -729,7 +581,7 @@
             animation: ani4,
             trigger: "#tec",
             start: "top top",
-            end: "+=700",
+            end: "+=1000",
             scrub: true,
             pin: true,
             anticipatePin: 1,
@@ -744,7 +596,7 @@
             animation: ani4,
             trigger: "#tec",
             start: "top top",
-            end: "+=700",
+            end: "+=1000",
             scrub: true,
             pin: false,
             anticipatePin: 1,

@@ -40,7 +40,6 @@ body {
     position: absolute;
     top: 0;
     height: calc(var(--vh, 1vh) * 100);
-    height: 100%;
     width: 100%;
     background-color: var(--bg);
 }
@@ -119,8 +118,7 @@ body {
 #fullpage {
     position: relative;
     width: 100%;
-    /* height: calc(var(--vh, 1vh) * 100); */
-    height: 100%;
+    height: calc(var(--vh, 1vh) * 100);
     overflow: hidden; /* 스크롤바 숨김 (이 영역은 프로그램적으로 이동) */
 }
 
@@ -138,8 +136,7 @@ body {
     justify-content: center;
     position: relative;
     width: 100%;
-    /* height: calc(var(--vh, 1vh) * 100); 각 섹션은 한 화면 */
-    height: 100%;
+    height: calc(var(--vh, 1vh) * 100); /* 각 섹션은 한 화면 */
 }
 #fullpage .section.center {
     align-items: center;
@@ -715,7 +712,7 @@ body {
     }
     .section.fullpage {
         height: calc(var(--vh, 1vh) * 100);
-        height: 100%;
+        height: 100vh;
     }
     .section.fullpage.mo_snap_none {
         margin-top: 50px;
@@ -729,6 +726,9 @@ body {
     }
     header:not(.is-hidden) + #contents .sub_visual h3 {
         margin-top: 26px;
+    }
+    .sub_visual h3 {
+        transition: margin 0.5s 
     }
     .sub_visual .swiper {
         height: 100vw;

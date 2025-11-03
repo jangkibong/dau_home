@@ -130,7 +130,6 @@
             { scale: 0.55, duration: 1 },
             { y: -100, duration: 1 },
             { y: -400, duration: 1 },
-            { duration: 1 },
         ],
     }).to(
         "#intro .main_title",

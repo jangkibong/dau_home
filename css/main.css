@@ -31,7 +31,7 @@ body {
     align-items: center;
     position: relative;
     height: 100vh;
-    margin-bottom: 20vw;
+    margin-bottom: 80px;
     box-sizing: content-box;
 }
 
@@ -722,7 +722,7 @@ body {
     .sub_visual > .sub_titles_wrap {
         display: none;
     }
-    
+
     .sub_visual h3 {
         font-size: 1.4rem;
         left: 2rem;

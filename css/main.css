@@ -31,6 +31,7 @@ body {
     align-items: center;
     position: relative;
     height: 100vh;
+    height: 100%;
     margin-bottom: 20vw;
     box-sizing: content-box;
 }
@@ -39,6 +40,7 @@ body {
     position: absolute;
     top: 0;
     height: calc(var(--vh, 1vh) * 100);
+    height: 100%;
     width: 100%;
     background-color: var(--bg);
 }
@@ -47,7 +49,7 @@ body {
     height: fit-content;
 }
 
-.section.fullpage.fixedBottom > article {
+/* .section.fullpage.fixedBottom > article {
     position: fixed;
     top: auto;
     bottom: 0;
@@ -66,7 +68,7 @@ body {
 .section.fullpage.prev > article {
     top: auto;
     bottom: 0;
-}
+} */
 
 /* intro -start */
 .section .main_visual.intro {
@@ -713,6 +715,7 @@ body {
     }
     .section.fullpage {
         height: calc(var(--vh, 1vh) * 100);
+        height: 100%;
     }
     .section.fullpage.mo_snap_none {
         margin-top: 50px;
@@ -722,8 +725,11 @@ body {
         font-size: 1.4rem;
         left: 2rem;
         top: 2rem;
+        transition: margin 0.5s 
     }
-
+    header:not(.is-hidden) + #contents .sub_visual h3 {
+        margin-top: 26px;
+    }
     .sub_visual .swiper {
         height: 100vw;
         min-height: 50vh;

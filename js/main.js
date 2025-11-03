@@ -22,19 +22,6 @@
     if (!$) return;
 
     // =========================================================
-    // 0) 모바일 뷰포트 높이 계산
-    // =========================================================
-    function setRealVH() {
-        // window.innerHeight = 네비게이션 바 제외하고 실제 보이는 높이
-        let vh = window.innerHeight * 0.01;
-        document.documentElement.style.setProperty("--vh", `${vh}px`);
-    }
-    // 페이지 처음 로드할 때 실행
-    setRealVH();
-    // 화면 크기 바뀌면 다시 계산
-    window.addEventListener("resize", setRealVH);
-
-    // =========================================================
     // 1) 인트로 - gsap
     // =========================================================
     gsap.registerPlugin(ScrollTrigger, Observer);
@@ -715,8 +702,19 @@
     })();
 })(window.jQuery, window, document);
 
-// 반응형 이미지 / 영상 변경
+// 반응형 크기 / 이미지 / 영상 변경
 $(function () {
+    // =========================================================
+    // 0) 모바일 뷰포트 높이 계산
+    // =========================================================
+    function setRealVH() {
+        // window.innerHeight = 네비게이션 바 제외하고 실제 보이는 높이
+        let vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty("--vh", `${vh}px`);
+    }
+    // 페이지 처음 로드할 때 실행
+    setRealVH();
+
     const updateMainVisual = () => {
         const $intro = $(".main_visual_img");
         const $subVisualImg = $("#fullpage .section img");
@@ -745,7 +743,9 @@ $(function () {
     $(window).on("resize", function () {
         const currentWidth = $(window).width();
         if (currentWidth !== lastWidth) {
-            updateMainVisual(); // 가로폭이 달라졌을 때만 호출
+            // 가로폭이 달라졌을 때만 호출
+            updateMainVisual(); 
+            setRealVH();
             lastWidth = currentWidth; // 이전 폭 갱신
         }
     });

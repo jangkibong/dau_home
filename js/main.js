@@ -867,8 +867,14 @@ $(function () {
 
     updateMainVisual();
 
+    let lastWidth = $(window).width();
+
     $(window).on("resize", function () {
-        updateMainVisual();
+        const currentWidth = $(window).width();
+        if (currentWidth !== lastWidth) {
+            updateMainVisual(); // 가로폭이 달라졌을 때만 호출
+            lastWidth = currentWidth; // 이전 폭 갱신
+        }
     });
 });
 

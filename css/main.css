@@ -31,7 +31,6 @@ body {
     align-items: center;
     position: relative;
     height: 100vh;
-    height: 100%;
     margin-bottom: 20vw;
     box-sizing: content-box;
 }
@@ -719,6 +718,11 @@ body {
         margin-top: 50px;
     }
 
+
+    .sub_visual > .sub_titles_wrap {
+        display: none;
+    }
+    
     .sub_visual h3 {
         font-size: 1.4rem;
         left: 2rem;
@@ -732,9 +736,9 @@ body {
         transition: margin 0.5s 
     }
     .sub_visual .swiper {
-        height: 100vw;
+        /* height: 100vw; */
         min-height: 50vh;
-        max-height: 50vh;
+        /* max-height: 50vh; */
         max-width: none;
     }
 
@@ -752,6 +756,7 @@ body {
         align-items: flex-start;
         padding: 0 1.8rem 0 1.4rem;
         margin-left: 0;
+        bottom: 50%;
     }
 
     .sub_visual {
@@ -765,10 +770,12 @@ body {
     }
     .sub_visual .sub_visual_item {
         justify-content: center;
+        align-items: flex-end;
     }
     .sub_visual .sub_visual_item img {
         width: 100%;
         object-fit: cover;
+        max-height: 50vh;
     }
 
     .swiper_wrap {

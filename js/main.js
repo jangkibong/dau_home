@@ -8,7 +8,6 @@
  */
 
 (function ($, win, doc) {
-    $("heder").css({ opacity: 1 });
     window.scrollEnabled = true;
 
     // 제어 함수도 window에 붙여두면 더 편리
@@ -231,6 +230,38 @@
         });
     }
 
+    // 모바일에서는 .sub_titles_wrap > .sub_tilte_wrap 을
+    // 각 인덱스의 .sub_visual_item 첫 자녀로 이동시키고,
+    // 데스크톱에서는 원래 위치로 복구한다.
+    function relocateIndicatorsForMobile($host) {
+        const isMobile = window.matchMedia && window.matchMedia("(max-width: 720px)").matches;
+        const movedFlag = $host.attr("data-indicators-moved") === "true";
+        const $titlesWrap = $host.find(".sub_titles_wrap");
+        const $items = $host.find(".sub_visual_content .sub_visual_item");
+
+        if (isMobile && !movedFlag) {
+            const $indicators = $titlesWrap.find(".sub_tilte_wrap");
+            if ($items.length && $indicators.length) {
+                $items.each(function (i) {
+                    const $targetIndicator = $indicators.eq(i);
+                    if ($targetIndicator && $targetIndicator.length) {
+                        $(this).prepend($targetIndicator);
+                    }
+                });
+                $host.attr("data-indicators-moved", "true");
+            }
+        } else if (!isMobile && movedFlag) {
+            // 데스크톱으로 돌아오면 다시 원래 컨테이너로 복귀
+            const $movedIndicators = $host.find(".sub_visual_content .sub_visual_item > .sub_tilte_wrap");
+            if ($movedIndicators.length) {
+                $movedIndicators.each(function () {
+                    $titlesWrap.append(this);
+                });
+            }
+            $host.removeAttr("data-indicators-moved");
+        }
+    }
+
     const getActiveIndex = (sw) =>
         (sw && (typeof sw.realIndex === "number" ? sw.realIndex : sw.activeIndex)) || 0;
 
@@ -239,11 +270,15 @@
             const $host = $(this);
             const $container = $host.find(".sub_visual_content");
             const $titlesWrap = $host.find(".sub_titles_wrap");
-            const $indicators = $titlesWrap.find(".sub_tilte_wrap");
-            if (!$container.length || !$indicators.length) return;
+            if (!$container.length) return;
 
             const slideEls = upgradeToSwiperDOM($container);
-            decorateIndicatorsA11y($titlesWrap, $indicators, slideEls);
+            // 모바일 환경이면 인디케이터를 각 슬라이드로 이동
+            relocateIndicatorsForMobile($host);
+            const $indicators = $host.find(".sub_tilte_wrap");
+            if (!$indicators.length) return;
+            // 래퍼 대신 아티클에 tablist 역할 부여(모바일 이동 시 단일 래퍼가 비어질 수 있음)
+            decorateIndicatorsA11y($host, $indicators);
 
             // ===== Swiper (세로) : GSAP 단독 제어를 위해 제스처/휠 OFF =====
             const swiper = new Swiper($container.get(0), {
@@ -268,19 +303,6 @@
                 },
             });
 
-            // 인디케이터 클릭/키보드 이동은 유지 (원하면 스크롤 진행도도 동기화 가능)
-            $indicators
-                .on("click", function () {
-                    const idx = $(this).index();
-                    swiper.slideTo(idx, 600);
-                })
-                .on("keydown", function (e) {
-                    const idx = $(this).index();
-                    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-                        e.preventDefault();
-                        swiper.slideTo(idx, 600);
-                    }
-                });
 
             // ===== ScrollTrigger(핀 없음) : 진행도→슬라이드 인덱스 =====
             // 총 4장일 때 0%, 25%, 50%, 75%, 100%에서 0,1,2,3으로 스냅
@@ -320,6 +342,12 @@
             };
             window.addEventListener("resize", safeRefresh);
             window.addEventListener("orientationchange", safeRefresh);
+
+            // 반응형 전환 시 인디케이터 재배치
+            const relocateOnResize = () => {
+                relocateIndicatorsForMobile($host);
+            };
+            window.addEventListener("resize", relocateOnResize);
         });
     });
 

@@ -41,6 +41,29 @@
 
     // ScrollTrigger.config({autoRefreshEvents: "visibilitychange,DOMContentLoaded,load"});
 
+    // =========================================================
+    // Lenis 부드러운 스크롤 초기화 + GSAP 동기화
+    // =========================================================
+    if (typeof Lenis !== "undefined") {
+        const lenis = new Lenis({
+            duration: 1.4, // 0.8~1.4 권장
+            smoothWheel: true,
+            smoothTouch: false,
+            touchMultiplier: 0.8, // 터치 스크롤 배수
+            easing: (t) => 1 - Math.pow(1 - t, 3),
+        });
+
+        lenis.on("scroll", () => {
+            ScrollTrigger.update();
+        });
+
+        function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+    }
+
     const MomentumKiller = (() => {
         let obs = null,
             tId = 0,
@@ -120,13 +143,15 @@
             { scale: 0.55, duration: 1 },
             { y: -100, duration: 1 },
             { y: -400, duration: 1 },
+            { duration: 1 },
         ],
     }).to(
         "#intro .main_title",
         {
             keyframes: [
                 { y: 0, duration: 1 },
-                { y: "-60vh", duration: 1 },
+                { y: "-60vh", duration: 2 },
+                { duration: 0.5 },
             ],
         },
         0
@@ -155,6 +180,7 @@
         scrub: true,
         pin: true,
         anticipatePin: 1,
+        invalidateOnRefresh: true,
     });
 
     // --------------------------------------------
@@ -270,12 +296,7 @@
                 scrub: true,
                 // 핀은 위의 첫 번째 ST가 담당 → 여기서는 pin 주지 않음
                 // markers: true,
-                // 스냅: 0, .25, .5, .75, 1.0
-                snap: {
-                    snapTo: (value) => gsap.utils.snap(1 / MAX_INDEX)(value),
-                    duration: 0.35,
-                    ease: "power1.out",
-                },
+                // 스냅 제거: 섹션 경계 이탈 시 튕김 현상 방지
                 onUpdate(self) {
                     // 진행도(0~1) → 인덱스 (25%마다 1씩 증가)
                     // 소수 경계에서 떨림 방지용 EPS
@@ -316,7 +337,7 @@
         scrub: true,
         pin: true,
         anticipatePin: 1,
-        markers: false,
+        invalidateOnRefresh: true,
     });
     /* =========================================================
      * 6) #project Horizontal Swiper
@@ -585,7 +606,7 @@
             scrub: true,
             pin: true,
             anticipatePin: 1,
-            markers: false,
+            invalidateOnRefresh: true,
         });
     });
 
@@ -600,7 +621,7 @@
             scrub: true,
             pin: false,
             anticipatePin: 1,
-            markers: false,
+            invalidateOnRefresh: true,
         });
     });
 

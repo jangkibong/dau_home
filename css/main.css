@@ -1,3 +1,8 @@
+
+html,
+body {
+    overscroll-behavior: none;
+}
 /* 스크롤바 숨김 - start */
 body {
     -ms-overflow-style: none;
@@ -268,7 +273,7 @@ body {
     width: 100vw;
     color: var(--wt);
     background-color: var(--bk) !important;
-    overscroll-behavior: contain;
+    /* overscroll-behavior: contain; */
 }
 
 .sub_visual h3 {
@@ -567,7 +572,7 @@ body {
 #pr {
     margin-top: 6.25em;
     padding-left: 3.125em;
-    padding-bottom:120px;
+    padding-bottom: 120px;
 }
 
 .section_contents .swiper {
@@ -850,7 +855,7 @@ body {
     #tec.section {
         height: auto !important;
     }
-    #tec.section article{
+    #tec.section article {
         position: relative !important;
         height: auto !important;
     }
@@ -890,7 +895,7 @@ body {
     #pr {
         padding-left: 1.6rem;
         margin-top: 1rem;
-        padding-bottom:100px;
+        padding-bottom: 100px;
     }
     #pr .swiper_item {
         flex-direction: column;
@@ -935,6 +940,9 @@ body {
     }
 }
 
-
-.pin-spacer { transition: none !important; }
-.pinned-scope { overscroll-behavior: contain; }
+.pin-spacer {
+    transition: none !important;
+}
+.pinned-scope {
+    overscroll-behavior: contain;
+}

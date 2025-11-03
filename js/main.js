@@ -35,7 +35,8 @@
             duration: 1.4, // 0.8~1.4 권장
             smoothWheel: true,
             smoothTouch: false,
-            touchMultiplier: 0.8, // 터치 스크롤 배수
+            syncTouch: true, // 터치 입력도 Lenis로 제어
+            touchMultiplier: 0.3, // 터치 스크롤 배수(낮출수록 덜 이동)
             easing: (t) => 1 - Math.pow(1 - t, 3),
         });
 
@@ -48,6 +49,15 @@
             requestAnimationFrame(raf);
         }
         requestAnimationFrame(raf);
+
+        // Lenis 전역 노출 및 제어 API 제공
+        win.__lenis = lenis;
+        win.blockScroll = function () {
+            try { lenis.stop(); } catch (_) {}
+        };
+        win.unblockScroll = function () {
+            try { lenis.start(); } catch (_) {}
+        };
     }
 
     const MomentumKiller = (() => {

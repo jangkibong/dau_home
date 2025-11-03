@@ -158,6 +158,7 @@
      * Sub Visual
      * =======================================================*/
     const ani2 = gsap.timeline();
+    const $overview = $("#overview");
     ScrollTrigger.create({
         animation: ani2,
         trigger: "#overview",
@@ -167,6 +168,18 @@
         pin: true,
         anticipatePin: 1,
         invalidateOnRefresh: true,
+        onEnter() {
+            $overview.css({ overflow: "visible" });
+        },
+        onEnterBack() {
+            $overview.css({ overflow: "visible" });
+        },
+        onLeave() {
+            $overview.css({ overflow: "hidden" });
+        },
+        onLeaveBack() {
+            $overview.css({ overflow: "hidden" });
+        },
     });
 
     // --------------------------------------------
@@ -319,7 +332,7 @@
         animation: ani3,
         trigger: "#project_wrap",
         start: "top top",
-        end: "+=1000",
+        end: "+=900",
         scrub: true,
         pin: true,
         anticipatePin: 1,
@@ -353,7 +366,7 @@
             ScrollTrigger.create({
                 trigger: "#project_wrap",
                 start: "top top",
-                end: "+=1000",
+                end: "+=900",
                 // pin: true  // ← 애니메이션용 ST에서 이미 pin을 쓰고 있으므로 여기서는 생략
                 onEnter: handleEnterLikePin,
                 onEnterBack: handleEnterLikePin,
@@ -588,7 +601,7 @@
             animation: ani4,
             trigger: "#tec",
             start: "top top",
-            end: "+=1000",
+            end: "+=900",
             scrub: true,
             pin: true,
             anticipatePin: 1,
@@ -603,7 +616,7 @@
             animation: ani4,
             trigger: "#tec",
             start: "top top",
-            end: "+=1000",
+            end: "+=900",
             scrub: true,
             pin: false,
             anticipatePin: 1,

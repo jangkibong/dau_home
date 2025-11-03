@@ -31,9 +31,10 @@ body {
     align-items: center;
     position: relative;
     height: 100vh;
-    margin-bottom: 0;
+    margin-bottom: 20vw;
     box-sizing: content-box;
 }
+
 .section.fullpage > article {
     position: absolute;
     top: 0;

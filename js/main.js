@@ -32,11 +32,12 @@
     // =========================================================
     if (typeof Lenis !== "undefined") {
         const lenis = new Lenis({
-            duration: 1.4, // 0.8~1.4 권장
+            duration: 0.8, // 0.8~1.4 권장
             smoothWheel: true,
             smoothTouch: false,
             syncTouch: true, // 터치 입력도 Lenis로 제어
-            touchMultiplier: 0.5, // 터치 스크롤 배수(낮출수록 덜 이동)
+            touchMultiplier: 1, // 터치 스크롤 배수(낮출수록 덜 이동)
+            wheelMultiplier: 1, // 마우스 휠 스크롤 속도 (1보다 작으면 느려짐, 크면 빨라짐)
             easing: (t) => 1 - Math.pow(1 - t, 3),
         });
 
@@ -179,6 +180,7 @@
         invalidateOnRefresh: true,
         onEnter() {
             $overview.css({ overflow: "visible" });
+            // window.__lenis && window.__lenis.stop();
         },
         onEnterBack() {
             $overview.css({ overflow: "visible" });

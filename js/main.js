@@ -169,27 +169,75 @@
      * =======================================================*/
     const ani2 = gsap.timeline();
     const $overview = $("#overview");
-    ScrollTrigger.create({
+    
+    // Lenis 스크롤 제어를 위한 변수
+    let isPinning = false;
+    let boundaryCheckRAF = null;
+    
+    // pin 영역 내에서 관성 스크롤이 경계를 넘지 않도록 주기적으로 체크
+    function checkPinBoundaries() {
+        if (isPinning && overviewST && window.__lenis) {
+            const currentScrollY = window.scrollY || window.pageYOffset;
+            const startScroll = overviewST.start;
+            const endScroll = overviewST.end;
+            
+            // pin 영역의 경계를 벗어났을 때만 제한
+            if (currentScrollY < startScroll) {
+                // 시작 경계를 넘어가려고 하면 경계로 되돌림
+                window.__lenis.scrollTo(startScroll, { immediate: true });
+            } else if (currentScrollY > endScroll) {
+                // 끝 경계를 넘어가려고 하면 경계로 되돌림
+                window.__lenis.scrollTo(endScroll, { immediate: true });
+            }
+            // pin 영역 내부에서는 스크롤 허용 (stop() 호출하지 않음)
+        }
+        
+        if (isPinning) {
+            boundaryCheckRAF = requestAnimationFrame(checkPinBoundaries);
+        }
+    }
+    
+    const overviewST = ScrollTrigger.create({
         animation: ani2,
         trigger: "#overview",
         start: "top top",
-        end: "+=2000",
+        end: "+=900",
         scrub: true,
         pin: true,
         anticipatePin: 1,
         invalidateOnRefresh: true,
         onEnter() {
             $overview.css({ overflow: "visible" });
-            // window.__lenis && window.__lenis.stop();
+            isPinning = true;
+            // 경계 체크 시작 (Lenis는 계속 실행되지만 경계만 보호)
+            if (boundaryCheckRAF) cancelAnimationFrame(boundaryCheckRAF);
+            checkPinBoundaries();
         },
         onEnterBack() {
             $overview.css({ overflow: "visible" });
+            isPinning = true;
+            // 경계 체크 시작 (Lenis는 계속 실행되지만 경계만 보호)
+            if (boundaryCheckRAF) cancelAnimationFrame(boundaryCheckRAF);
+            checkPinBoundaries();
         },
+        // onUpdate 제거 - checkPinBoundaries에서 이미 경계 체크 중
         onLeave() {
             $overview.css({ overflow: "hidden" });
+            isPinning = false;
+            // 경계 체크 중지 (Lenis는 계속 실행 중)
+            if (boundaryCheckRAF) {
+                cancelAnimationFrame(boundaryCheckRAF);
+                boundaryCheckRAF = null;
+            }
         },
         onLeaveBack() {
             $overview.css({ overflow: "hidden" });
+            isPinning = false;
+            // 경계 체크 중지 (Lenis는 계속 실행 중)
+            if (boundaryCheckRAF) {
+                cancelAnimationFrame(boundaryCheckRAF);
+                boundaryCheckRAF = null;
+            }
         },
     });
 
@@ -292,16 +340,15 @@
             // 래퍼 대신 아티클에 tablist 역할 부여(모바일 이동 시 단일 래퍼가 비어질 수 있음)
             decorateIndicatorsA11y($host, $indicators);
 
-            // ===== Swiper (세로) : GSAP 단독 제어를 위해 제스처/휠 OFF =====
+            // ===== Swiper (세로) =====
             const swiper = new Swiper($container.get(0), {
                 direction: "vertical",
                 effect: "slide",
                 speed: 600,
                 loop: false,
-                allowTouchMove: false, // 스와이프 제스처 끔 (GSAP만으로 넘김)
-                // mousewheel은 완전히 비활성화(충돌 방지)
-                mousewheel: false,
-                resistanceRatio: 0, // 끝에서 바운스 제거
+                allowTouchMove: false, // 커스텀 터치 처리로 변경
+                mousewheel: false, // 커스텀 휠 처리로 변경
+                resistanceRatio: 0,
                 touchReleaseOnEdges: true,
                 observeParents: true,
                 observer: true,
@@ -315,36 +362,191 @@
                 },
             });
 
+            // ===== 마우스휠/터치로 슬라이드 제어 + 페이지 스크롤 방향 제어 =====
+            const totalSlides = swiper.slides.length;
+            let isSliding = false; // 슬라이드 전환 중인지 확인
+            let wheelTimeout;
+            let touchStartY = 0;
+            let touchStartX = 0;
+            let touchStartTime = 0;
+            let isTouching = false;
+            const MIN_SWIPE_DISTANCE = 50; // 최소 스와이프 거리 (px)
+            const MAX_SWIPE_TIME = 300; // 최대 스와이프 시간 (ms)
 
-            // ===== ScrollTrigger(핀 없음) : 진행도→슬라이드 인덱스 =====
-            // 총 4장일 때 0%, 25%, 50%, 75%, 100%에서 0,1,2,3으로 스냅
-            const TOTAL = 4; // ★ 페이지 수(원하면 slideEls.length로 교체 가능)
-            const MAX_INDEX = TOTAL - 1;
-            let lastIdx = -1;
+            function handleSlideNavigation(direction, isTouch = false) {
+                // ScrollTrigger가 #overview 영역에 pin되어 있는지 확인
+                if (!overviewST || !overviewST.isActive) return false;
 
-            ScrollTrigger.create({
-                trigger: "#overview",
-                start: "top top",
-                end: "+=2000",
-                scrub: true,
-                // 핀은 위의 첫 번째 ST가 담당 → 여기서는 pin 주지 않음
-                // markers: true,
-                // 스냅 제거: 섹션 경계 이탈 시 튕김 현상 방지
-                onUpdate(self) {
-                    // 진행도(0~1) → 인덱스 (25%마다 1씩 증가)
-                    // 소수 경계에서 떨림 방지용 EPS
-                    const EPS = 1e-6;
-                    let idx = Math.floor((self.progress + EPS) * TOTAL);
-                    if (idx > MAX_INDEX) idx = MAX_INDEX;
-                    if (idx !== lastIdx) {
-                        lastIdx = idx;
-                        swiper.slideTo(idx, 600, false); // GSAP 트리거로만 넘김
+                // 이미 슬라이드 전환 중이면 무시
+                if (isSliding) return true;
+
+                const currentIndex = getActiveIndex(swiper);
+                const isFirstSlide = currentIndex === 0;
+                const isLastSlide = currentIndex === totalSlides - 1;
+
+                // 위로 스크롤/스와이프 (direction === 'up')
+                if (direction === 'up') {
+                    if (isFirstSlide) {
+                        // 첫 페이지: 위로는 페이지 스크롤 허용
+                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
+                    } else {
+                        // 첫 페이지가 아닐 때: Swiper 슬라이드만 제어
+                        isSliding = true;
+                        swiper.slidePrev();
+                        clearTimeout(wheelTimeout);
+                        wheelTimeout = setTimeout(() => {
+                            isSliding = false;
+                        }, 600);
+                        return true; // 이벤트 차단
                     }
-                },
-                onRefresh(self) {
-                    self.update();
-                },
-            });
+                }
+                // 아래로 스크롤/스와이프 (direction === 'down')
+                else if (direction === 'down') {
+                    if (isLastSlide) {
+                        // 마지막 페이지: 아래로는 페이지 스크롤 허용
+                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
+                    } else {
+                        // 마지막 페이지가 아닐 때: Swiper 슬라이드만 제어
+                        isSliding = true;
+                        swiper.slideNext();
+                        clearTimeout(wheelTimeout);
+                        wheelTimeout = setTimeout(() => {
+                            isSliding = false;
+                        }, 600);
+                        return true; // 이벤트 차단
+                    }
+                }
+                return false;
+            }
+
+            function handleWheel(e) {
+                if (!overviewST || !overviewST.isActive) return;
+
+                const deltaY = e.deltaY;
+                const direction = deltaY < 0 ? 'up' : 'down';
+                const shouldPrevent = handleSlideNavigation(direction, false);
+
+                if (shouldPrevent) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }
+
+            let touchDeltaY = 0;
+            let touchDeltaX = 0;
+
+            function handleTouchStart(e) {
+                // ScrollTrigger가 활성화되지 않았어도 기본 터치는 허용
+                if (!overviewST) return;
+                
+                const touch = e.touches[0];
+                if (!touch) return;
+                
+                touchStartY = touch.clientY;
+                touchStartX = touch.clientX;
+                touchStartTime = Date.now();
+                isTouching = true;
+                touchDeltaY = 0;
+                touchDeltaX = 0;
+            }
+
+            function handleTouchMove(e) {
+                if (!isTouching) return;
+                
+                const touch = e.touches[0];
+                if (!touch) return;
+
+                const currentY = touch.clientY;
+                const currentX = touch.clientX;
+                touchDeltaY = currentY - touchStartY;
+                touchDeltaX = currentX - touchStartX;
+                const absDeltaY = Math.abs(touchDeltaY);
+                const absDeltaX = Math.abs(touchDeltaX);
+
+                // 수평 스와이프가 더 크면 무시 (가로 스와이프는 다른 용도)
+                if (absDeltaX > absDeltaY) return;
+
+                // ScrollTrigger가 활성화되어 있을 때만 페이지 스크롤 제어
+                if (overviewST && overviewST.isActive) {
+                    const currentIndex = getActiveIndex(swiper);
+                    const isFirstSlide = currentIndex === 0;
+                    const isLastSlide = currentIndex === totalSlides - 1;
+
+                    // 첫 페이지에서 위로 스와이프하거나 마지막 페이지에서 아래로 스와이프할 때는 페이지 스크롤 허용
+                    if ((isFirstSlide && touchDeltaY > 0) || (isLastSlide && touchDeltaY < 0)) {
+                        return; // 페이지 스크롤 허용 (preventDefault 하지 않음)
+                    }
+
+                    // 그 외의 경우: Swiper 슬라이드 제어를 위해 터치 이벤트 차단
+                    if (absDeltaY > 10) { // 작은 움직임도 차단하여 Swiper 기본 동작 방지
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                } else {
+                    // ScrollTrigger가 비활성화되어 있으면 모든 터치를 차단하지 않음
+                    // Swiper 기본 동작 허용
+                }
+            }
+
+            function handleTouchEnd(e) {
+                if (!isTouching) return;
+
+                const absDeltaY = Math.abs(touchDeltaY);
+                const absDeltaX = Math.abs(touchDeltaX);
+                const swipeTime = Date.now() - touchStartTime;
+
+                // 수평 스와이프가 더 크면 무시
+                if (absDeltaX > absDeltaY) {
+                    resetTouchState();
+                    return;
+                }
+
+                // 최소 거리와 시간 조건을 만족하는 스와이프만 처리
+                if (absDeltaY > MIN_SWIPE_DISTANCE && swipeTime < MAX_SWIPE_TIME) {
+                    const direction = touchDeltaY > 0 ? 'up' : 'down'; // touchDeltaY > 0이면 위로 스와이프 (손가락이 아래로 이동)
+                    const shouldPrevent = handleSlideNavigation(direction, true);
+
+                    if (shouldPrevent) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                }
+
+                resetTouchState();
+            }
+
+            function resetTouchState() {
+                setTimeout(() => {
+                    isTouching = false;
+                    touchStartY = 0;
+                    touchStartX = 0;
+                    touchDeltaY = 0;
+                    touchDeltaX = 0;
+                    touchStartTime = 0;
+                }, 50);
+            }
+
+            // #overview 영역과 Swiper 컨테이너에 이벤트 리스너 추가
+            const overviewEl = $overview.get(0);
+            const swiperEl = $container.get(0);
+            
+            if (overviewEl) {
+                // 마우스휠 (capture로 먼저 처리)
+                overviewEl.addEventListener("wheel", handleWheel, { passive: false, capture: true });
+                // 터치 이벤트
+                overviewEl.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
+                overviewEl.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
+                overviewEl.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
+                overviewEl.addEventListener("touchcancel", resetTouchState, { passive: true, capture: true });
+            }
+            
+            // Swiper 컨테이너에도 추가 (더 확실한 이벤트 캡처)
+            if (swiperEl && swiperEl !== overviewEl) {
+                swiperEl.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
+                swiperEl.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
+                swiperEl.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
+                swiperEl.addEventListener("touchcancel", resetTouchState, { passive: true, capture: true });
+            }
 
             // 레이아웃 변경 대응
             let raf;

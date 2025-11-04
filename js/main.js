@@ -36,7 +36,7 @@
             smoothWheel: true,
             smoothTouch: false,
             syncTouch: true, // 터치 입력도 Lenis로 제어
-            touchMultiplier: 1, // 터치 스크롤 배수(낮출수록 덜 이동)
+            touchMultiplier: 0.7, // 터치 스크롤 배수(낮출수록 덜 이동)
             wheelMultiplier: 1, // 마우스 휠 스크롤 속도 (1보다 작으면 느려짐, 크면 빨라짐)
             easing: (t) => 1 - Math.pow(1 - t, 3),
         });

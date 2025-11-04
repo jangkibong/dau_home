@@ -201,7 +201,7 @@
         animation: ani2,
         trigger: "#overview",
         start: "top top",
-        end: "+=900",
+        end: "+=800",
         scrub: true,
         pin: true,
         anticipatePin: 1,
@@ -209,14 +209,18 @@
         onEnter() {
             $overview.css({ overflow: "visible" });
             isPinning = true;
-            // 경계 체크 시작 (Lenis는 계속 실행되지만 경계만 보호)
+            // 커스텀 이벤트 발생: pin 진입 알림
+            window.dispatchEvent(new CustomEvent('overviewPinEnter'));
+            // 경계 체크 시작
             if (boundaryCheckRAF) cancelAnimationFrame(boundaryCheckRAF);
             checkPinBoundaries();
         },
         onEnterBack() {
             $overview.css({ overflow: "visible" });
             isPinning = true;
-            // 경계 체크 시작 (Lenis는 계속 실행되지만 경계만 보호)
+            // 커스텀 이벤트 발생: pin 진입 알림
+            window.dispatchEvent(new CustomEvent('overviewPinEnter'));
+            // 경계 체크 시작
             if (boundaryCheckRAF) cancelAnimationFrame(boundaryCheckRAF);
             checkPinBoundaries();
         },
@@ -224,7 +228,7 @@
         onLeave() {
             $overview.css({ overflow: "hidden" });
             isPinning = false;
-            // 경계 체크 중지 (Lenis는 계속 실행 중)
+            // 경계 체크 중지
             if (boundaryCheckRAF) {
                 cancelAnimationFrame(boundaryCheckRAF);
                 boundaryCheckRAF = null;
@@ -233,7 +237,7 @@
         onLeaveBack() {
             $overview.css({ overflow: "hidden" });
             isPinning = false;
-            // 경계 체크 중지 (Lenis는 계속 실행 중)
+            // 경계 체크 중지
             if (boundaryCheckRAF) {
                 cancelAnimationFrame(boundaryCheckRAF);
                 boundaryCheckRAF = null;
@@ -372,10 +376,32 @@
             let isTouching = false;
             const MIN_SWIPE_DISTANCE = 50; // 최소 스와이프 거리 (px)
             const MAX_SWIPE_TIME = 300; // 최대 스와이프 시간 (ms)
+            
+            // pin 영역 진입 후 첫 스크롤 무시를 위한 변수 (단순화: 횟수 기반)
+            let pinEnterScrollCount = 0; // pin 진입 후 스크롤 이벤트 횟수
+            let isPinEntered = false; // pin 영역에 진입했는지 여부
+            let pinEnterTime = 0; // pin 진입 시점 (관성 스크롤 필터링용)
+            const PIN_ENTER_SCROLL_IGNORE_COUNT = 1; // pin 진입 후 무시할 스크롤 이벤트 횟수 (2->1로 단축)
+            const PIN_ENTER_INERTIA_FILTER = 50; // pin 진입 직후 관성 스크롤 필터링 시간 (ms) (80->50으로 단축)
+            
+            // 첫/마지막 슬라이드에서 페이지 스크롤 허용을 위한 스크롤 시도 횟수
+            let firstSlideScrollAttempt = 0; // 첫 페이지에서 위로 스크롤 시도 횟수
+            let lastSlideScrollAttempt = 0; // 마지막 페이지에서 아래로 스크롤 시도 횟수
+            let lastCheckedIndex = -1; // 마지막으로 확인한 슬라이드 인덱스
+            let lastScrollAttemptTime = 0; // 마지막 스크롤 시도 시간
+            const SCROLL_ATTEMPT_RESET_TIME = 1000; // 스크롤 시도 리셋 시간 (ms)
 
             function handleSlideNavigation(direction, isTouch = false) {
                 // ScrollTrigger가 #overview 영역에 pin되어 있는지 확인
-                if (!overviewST || !overviewST.isActive) return false;
+                if (!overviewST || !overviewST.isActive) {
+                    // pin 영역을 벗어나면 상태 리셋
+                    if (isPinEntered) {
+                        isPinEntered = false;
+                        pinEnterScrollCount = 0;
+                        pinEnterTime = 0;
+                    }
+                    return false;
+                }
 
                 // 이미 슬라이드 전환 중이면 무시
                 if (isSliding) return true;
@@ -383,12 +409,56 @@
                 const currentIndex = getActiveIndex(swiper);
                 const isFirstSlide = currentIndex === 0;
                 const isLastSlide = currentIndex === totalSlides - 1;
+                const currentTime = Date.now();
+
+                // pin 영역 진입 후 첫 스크롤 무시 로직 (단순화: 횟수 기반)
+                if (isPinEntered && pinEnterTime > 0) {
+                    const timeSincePinEnter = currentTime - pinEnterTime;
+                    
+                    // 1. pin 진입 직후 짧은 시간 내의 스크롤은 관성 스크롤으로 무시
+                    if (timeSincePinEnter < PIN_ENTER_INERTIA_FILTER) {
+                        return true;
+                    }
+                    
+                    // 2. 관성 스크롤 필터링 이후: 횟수 기반으로 처리
+                    pinEnterScrollCount++;
+                    
+                    if (pinEnterScrollCount < PIN_ENTER_SCROLL_IGNORE_COUNT) {
+                        // 지정된 횟수 미만이면 무시
+                        return true;
+                    }
+                    // 지정된 횟수 이상이면 정상 동작 (아래 로직 계속)
+                }
+
+                // 슬라이드가 변경되면 스크롤 시도 횟수 리셋
+                if (currentIndex !== lastCheckedIndex) {
+                    firstSlideScrollAttempt = 0;
+                    lastSlideScrollAttempt = 0;
+                    lastCheckedIndex = currentIndex;
+                    lastScrollAttemptTime = currentTime;
+                    // pin 진입 후 첫 스크롤 무시는 슬라이드 변경과 무관하게 유지
+                }
+
+                // 일정 시간이 지나면 스크롤 시도 횟수 리셋 (pin 진입 스크롤은 제외)
+                if (currentTime - lastScrollAttemptTime > SCROLL_ATTEMPT_RESET_TIME) {
+                    firstSlideScrollAttempt = 0;
+                    lastSlideScrollAttempt = 0;
+                }
+                lastScrollAttemptTime = currentTime;
 
                 // 위로 스크롤/스와이프 (direction === 'up')
                 if (direction === 'up') {
                     if (isFirstSlide) {
-                        // 첫 페이지: 위로는 페이지 스크롤 허용
-                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
+                        // 첫 페이지: 첫 번째 시도는 무시, 두 번째 시도에서 페이지 스크롤 허용
+                        firstSlideScrollAttempt++;
+                        if (firstSlideScrollAttempt >= 2) {
+                            // 두 번째 스크롤 시도: 페이지 스크롤 허용
+                            firstSlideScrollAttempt = 0; // 리셋
+                            return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
+                        } else {
+                            // 첫 번째 스크롤 시도: 무시 (이벤트 차단)
+                            return true;
+                        }
                     } else {
                         // 첫 페이지가 아닐 때: Swiper 슬라이드만 제어
                         isSliding = true;
@@ -403,8 +473,16 @@
                 // 아래로 스크롤/스와이프 (direction === 'down')
                 else if (direction === 'down') {
                     if (isLastSlide) {
-                        // 마지막 페이지: 아래로는 페이지 스크롤 허용
-                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
+                        // 마지막 페이지: 첫 번째 시도는 무시, 두 번째 시도에서 페이지 스크롤 허용
+                        lastSlideScrollAttempt++;
+                        if (lastSlideScrollAttempt >= 2) {
+                            // 두 번째 스크롤 시도: 페이지 스크롤 허용
+                            lastSlideScrollAttempt = 0; // 리셋
+                            return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
+                        } else {
+                            // 첫 번째 스크롤 시도: 무시 (이벤트 차단)
+                            return true;
+                        }
                     } else {
                         // 마지막 페이지가 아닐 때: Swiper 슬라이드만 제어
                         isSliding = true;
@@ -471,10 +549,26 @@
                     const currentIndex = getActiveIndex(swiper);
                     const isFirstSlide = currentIndex === 0;
                     const isLastSlide = currentIndex === totalSlides - 1;
+                    const direction = touchDeltaY > 0 ? 'up' : 'down';
 
-                    // 첫 페이지에서 위로 스와이프하거나 마지막 페이지에서 아래로 스와이프할 때는 페이지 스크롤 허용
+                    // 첫/마지막 슬라이드에서 페이지 스크롤 방향인지 확인
                     if ((isFirstSlide && touchDeltaY > 0) || (isLastSlide && touchDeltaY < 0)) {
-                        return; // 페이지 스크롤 허용 (preventDefault 하지 않음)
+                        // 페이지 스크롤 허용 여부를 handleSlideNavigation으로 확인
+                        // 단, handleSlideNavigation은 실제 스와이프 완료 시 호출되므로
+                        // 여기서는 일단 페이지 스크롤 방향일 때는 preventDefault 하지 않음
+                        // (handleTouchEnd에서 최종 결정)
+                        if (absDeltaY > 10) {
+                            // 페이지 스크롤을 허용하기 위해 preventDefault 하지 않음
+                            // 다만 관성 스크롤은 차단
+                            const timeSincePinEnter = pinEnterTime > 0 ? (Date.now() - pinEnterTime) : Infinity;
+                            if (timeSincePinEnter < PIN_ENTER_INERTIA_FILTER) {
+                                // pin 진입 후 관성 스크롤은 차단
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }
+                            // 그 외에는 페이지 스크롤 허용 (preventDefault 하지 않음)
+                        }
+                        return;
                     }
 
                     // 그 외의 경우: Swiper 슬라이드 제어를 위해 터치 이벤트 차단
@@ -547,6 +641,13 @@
                 swiperEl.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
                 swiperEl.addEventListener("touchcancel", resetTouchState, { passive: true, capture: true });
             }
+
+            // pin 진입 이벤트 리스너: pin 진입 시 상태 초기화
+            window.addEventListener("overviewPinEnter", function() {
+                isPinEntered = true;
+                pinEnterScrollCount = 0; // 횟수 리셋
+                pinEnterTime = Date.now(); // 관성 스크롤 필터링용
+            });
 
             // 레이아웃 변경 대응
             let raf;

@@ -36,7 +36,7 @@
             smoothWheel: true,
             smoothTouch: false,
             syncTouch: true, // 터치 입력도 Lenis로 제어
-            touchMultiplier: 0.7, // 터치 스크롤 배수(낮출수록 덜 이동)
+            touchMultiplier: 1, // 터치 스크롤 속도 (1보다 작으면 느려짐, 크면 빨라짐)
             wheelMultiplier: 1, // 마우스 휠 스크롤 속도 (1보다 작으면 느려짐, 크면 빨라짐)
             easing: (t) => 1 - Math.pow(1 - t, 3),
         });
@@ -233,6 +233,8 @@
                 cancelAnimationFrame(boundaryCheckRAF);
                 boundaryCheckRAF = null;
             }
+            // pin 영역 이탈 시 스크롤 상태 초기화 및 자연스러운 전환
+            window.dispatchEvent(new CustomEvent('overviewPinLeave'));
         },
         onLeaveBack() {
             $overview.css({ overflow: "hidden" });
@@ -242,6 +244,8 @@
                 cancelAnimationFrame(boundaryCheckRAF);
                 boundaryCheckRAF = null;
             }
+            // pin 영역 이탈 시 스크롤 상태 초기화 및 자연스러운 전환
+            window.dispatchEvent(new CustomEvent('overviewPinLeave'));
         },
     });
 
@@ -370,6 +374,7 @@
             const totalSlides = swiper.slides.length;
             let isSliding = false; // 슬라이드 전환 중인지 확인
             let wheelTimeout;
+            let lastSlideTransitionTime = 0; // 마지막 슬라이드 전환 시간
             let touchStartY = 0;
             let touchStartX = 0;
             let touchStartTime = 0;
@@ -384,12 +389,7 @@
             const PIN_ENTER_SCROLL_IGNORE_COUNT = 1; // pin 진입 후 무시할 스크롤 이벤트 횟수 (2->1로 단축)
             const PIN_ENTER_INERTIA_FILTER = 50; // pin 진입 직후 관성 스크롤 필터링 시간 (ms) (80->50으로 단축)
             
-            // 첫/마지막 슬라이드에서 페이지 스크롤 허용을 위한 스크롤 시도 횟수
-            let firstSlideScrollAttempt = 0; // 첫 페이지에서 위로 스크롤 시도 횟수
-            let lastSlideScrollAttempt = 0; // 마지막 페이지에서 아래로 스크롤 시도 횟수
             let lastCheckedIndex = -1; // 마지막으로 확인한 슬라이드 인덱스
-            let lastScrollAttemptTime = 0; // 마지막 스크롤 시도 시간
-            const SCROLL_ATTEMPT_RESET_TIME = 1000; // 스크롤 시도 리셋 시간 (ms)
 
             function handleSlideNavigation(direction, isTouch = false) {
                 // ScrollTrigger가 #overview 영역에 pin되어 있는지 확인
@@ -399,6 +399,7 @@
                         isPinEntered = false;
                         pinEnterScrollCount = 0;
                         pinEnterTime = 0;
+                        lastSlideTransitionTime = 0; // 슬라이드 전환 시간 리셋
                     }
                     return false;
                 }
@@ -410,6 +411,12 @@
                 const isFirstSlide = currentIndex === 0;
                 const isLastSlide = currentIndex === totalSlides - 1;
                 const currentTime = Date.now();
+                
+                // 빠른 연속 스크롤 차단: 슬라이드 전환 중이거나 최근에 전환이 있었으면 차단
+                if (isSliding) return true;
+                if (lastSlideTransitionTime > 0 && (currentTime - lastSlideTransitionTime) < 500) {
+                    return true; // 최근 슬라이드 전환 후 500ms 내 스크롤 차단
+                }
 
                 // pin 영역 진입 후 첫 스크롤 무시 로직 (단순화: 횟수 기반)
                 if (isPinEntered && pinEnterTime > 0) {
@@ -430,62 +437,37 @@
                     // 지정된 횟수 이상이면 정상 동작 (아래 로직 계속)
                 }
 
-                // 슬라이드가 변경되면 스크롤 시도 횟수 리셋
+                // 슬라이드가 변경되면 상태 업데이트
                 if (currentIndex !== lastCheckedIndex) {
-                    firstSlideScrollAttempt = 0;
-                    lastSlideScrollAttempt = 0;
                     lastCheckedIndex = currentIndex;
-                    lastScrollAttemptTime = currentTime;
-                    // pin 진입 후 첫 스크롤 무시는 슬라이드 변경과 무관하게 유지
                 }
-
-                // 일정 시간이 지나면 스크롤 시도 횟수 리셋 (pin 진입 스크롤은 제외)
-                if (currentTime - lastScrollAttemptTime > SCROLL_ATTEMPT_RESET_TIME) {
-                    firstSlideScrollAttempt = 0;
-                    lastSlideScrollAttempt = 0;
-                }
-                lastScrollAttemptTime = currentTime;
 
                 // 위로 스크롤/스와이프 (direction === 'up')
                 if (direction === 'up') {
                     if (isFirstSlide) {
-                        // 첫 페이지: 첫 번째 시도는 무시, 두 번째 시도에서 페이지 스크롤 허용
-                        firstSlideScrollAttempt++;
-                        if (firstSlideScrollAttempt >= 2) {
-                            // 두 번째 스크롤 시도: 페이지 스크롤 허용
-                            firstSlideScrollAttempt = 0; // 리셋
-                            return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
-                        } else {
-                            // 첫 번째 스크롤 시도: 무시 (이벤트 차단)
-                            return true;
-                        }
+                        // 첫 페이지: 페이지 스크롤 허용
+                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
                     } else {
-                        // 첫 페이지가 아닐 때: Swiper 슬라이드만 제어
+                        // 첫 페이지가 아닐 때 (마지막 포함): 무조건 Swiper 슬라이드만 제어, 페이지 스크롤 완전 차단
                         isSliding = true;
+                        lastSlideTransitionTime = currentTime; // 슬라이드 전환 시간 기록
                         swiper.slidePrev();
                         clearTimeout(wheelTimeout);
                         wheelTimeout = setTimeout(() => {
                             isSliding = false;
                         }, 600);
-                        return true; // 이벤트 차단
+                        return true; // 이벤트 차단 (페이지 스크롤 완전 차단)
                     }
                 }
                 // 아래로 스크롤/스와이프 (direction === 'down')
                 else if (direction === 'down') {
                     if (isLastSlide) {
-                        // 마지막 페이지: 첫 번째 시도는 무시, 두 번째 시도에서 페이지 스크롤 허용
-                        lastSlideScrollAttempt++;
-                        if (lastSlideScrollAttempt >= 2) {
-                            // 두 번째 스크롤 시도: 페이지 스크롤 허용
-                            lastSlideScrollAttempt = 0; // 리셋
-                            return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
-                        } else {
-                            // 첫 번째 스크롤 시도: 무시 (이벤트 차단)
-                            return true;
-                        }
+                        // 마지막 페이지: 페이지 스크롤 허용
+                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
                     } else {
                         // 마지막 페이지가 아닐 때: Swiper 슬라이드만 제어
                         isSliding = true;
+                        lastSlideTransitionTime = currentTime; // 슬라이드 전환 시간 기록
                         swiper.slideNext();
                         clearTimeout(wheelTimeout);
                         wheelTimeout = setTimeout(() => {
@@ -647,6 +629,20 @@
                 isPinEntered = true;
                 pinEnterScrollCount = 0; // 횟수 리셋
                 pinEnterTime = Date.now(); // 관성 스크롤 필터링용
+            });
+
+            // pin 이탈 이벤트 리스너: pin 이탈 시 상태 초기화 및 스크롤 자연스럽게 전환
+            window.addEventListener("overviewPinLeave", function() {
+                isPinEntered = false;
+                pinEnterScrollCount = 0;
+                pinEnterTime = 0;
+                lastSlideTransitionTime = 0; // 슬라이드 전환 시간 리셋
+                // 스크롤이 자연스럽게 진행되도록 상태 초기화
+                isSliding = false;
+                if (wheelTimeout) {
+                    clearTimeout(wheelTimeout);
+                    wheelTimeout = null;
+                }
             });
 
             // 레이아웃 변경 대응

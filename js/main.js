@@ -161,7 +161,7 @@
         animation: ani1,
         trigger: "#intro",
         start: "top top",
-        end: "+=1200",
+        end: "+=1600",
         scrub: true,
         pin: true,
         anticipatePin: 1,

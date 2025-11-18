@@ -1,31 +1,9 @@
-/*! main.js — Clean Rebuild (Snap logic removed + SubVisual section-wide control)
- * jQuery 3.7.1
- * - Intro: viewport 100% 덮을 때만 진행도 모션(화면 고정)
- * - Scroller: 부드러운 감쇠 스크롤(관성)
- * - Sub Visual: .sub_visual_content 세로 슬라이드, section 전체 스크롤로 제어
- *   - 스와이퍼가 이동 가능한 경우, 화면(페이지) 스크롤은 완전히 차단
- *   - 스와이퍼 경계(처음/마지막)에서만 페이지 스크롤 통과
- */
-
 (function ($, win, doc) {
-    window.scrollEnabled = true;
-
-    // 제어 함수도 window에 붙여두면 더 편리
-    window.disableCustomScroll = function () {
-        window.scrollEnabled = false;
-    };
-    window.enableCustomScroll = function () {
-        window.scrollEnabled = true;
-    };
-
     if (!$) return;
 
-    // =========================================================
-    // 1) 인트로 - gsap
-    // =========================================================
     gsap.registerPlugin(ScrollTrigger, Observer);
 
-    // ScrollTrigger.config({autoRefreshEvents: "visibilitychange,DOMContentLoaded,load"});
+    ScrollTrigger.config({ autoRefreshEvents: "visibilitychange,DOMContentLoaded,load" });
 
     // =========================================================
     // Lenis 부드러운 스크롤 초기화 + GSAP 동기화
@@ -50,105 +28,131 @@
             requestAnimationFrame(raf);
         }
         requestAnimationFrame(raf);
-
-        // Lenis 전역 노출 및 제어 API 제공
-        win.__lenis = lenis;
-        win.blockScroll = function () {
-            try { lenis.stop(); } catch (_) {}
-        };
-        win.unblockScroll = function () {
-            try { lenis.start(); } catch (_) {}
-        };
     }
 
-    const MomentumKiller = (() => {
-        let obs = null,
-            tId = 0,
-            freezing = false;
+    // =========================================================
+    // header .menu > ul 내부 스무스 스크롤 (Lenis 대신 독립 구현)
+    // - Lenis가 페이지 스크롤을 제어하더라도 메뉴 내부 스크롤은 부드럽게 동작하도록 함
+    // - passive:false 옵션으로 wheel/touch를 가로채어 자체 타깃(scrollTop)을 애니메이션함
+    // =========================================================
+    (function initHeaderMenuSmoothing() {
+        const menuList = document.querySelector("header .menu > ul");
+        if (!menuList) return;
 
-        function stopScrollJank() {
-            // 현재 위치로 강제 고정해 관성 끊기
-            const y = window.pageYOffset || document.documentElement.scrollTop || 0;
-            window.scrollTo(0, y);
-            requestAnimationFrame(() => window.scrollTo(0, y));
+        const ease = 0.12; // 작을수록 더 느리게 따라감
+        let target = menuList.scrollTop;
+        let current = target;
+        let rafId = null;
+        let isActive = false;
+
+        function clamp(v, a, b) {
+            return Math.max(a, Math.min(b, v));
         }
 
-        function freeze(ms = 400) {
-            if (freezing) {
-                clearTimeout(tId);
-                tId = setTimeout(unfreeze, ms);
-                stopScrollJank();
-                return;
+        function startLoop() {
+            if (rafId) return;
+            rafId = requestAnimationFrame(loop);
+        }
+
+        function stopLoop() {
+            if (!rafId) return;
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+
+        function loop() {
+            current += (target - current) * ease;
+            if (Math.abs(target - current) < 0.5) {
+                current = target;
             }
-            freezing = true;
-            stopScrollJank();
-
-            // wheel/touch/scroll 입력을 즉시 무력화
-            obs = Observer.create({
-                type: "wheel,touch,scroll,pointer",
-                onChange: stopScrollJank,
-                onChangeY: stopScrollJank,
-                onWheel: stopScrollJank,
-                onTouchMove: stopScrollJank,
-                onScroll: stopScrollJank,
-                preventDefault: true,
-                allowClicks: true,
-            });
-
-            // 키보드도 잠깐 차단
-            window.addEventListener("keydown", keyBlock, true);
-
-            tId = setTimeout(unfreeze, ms);
-        }
-
-        function keyBlock(e) {
-            const k = e.key;
-            if (
-                k === " " ||
-                k === "Spacebar" ||
-                k === "PageDown" ||
-                k === "PageUp" ||
-                k === "ArrowDown" ||
-                k === "ArrowUp" ||
-                k === "Home" ||
-                k === "End"
-            ) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
+            menuList.scrollTop = Math.round(current);
+            if (current !== target) {
+                rafId = requestAnimationFrame(loop);
+            } else {
+                rafId = null;
             }
         }
 
-        function unfreeze() {
-            if (obs) {
-                obs.kill();
-                obs = null;
-            }
-            window.removeEventListener("keydown", keyBlock, true);
-            freezing = false;
+        // 휠 이벤트 처리: 기본 스크롤 차단 후 target 업데이트
+        function onWheel(e) {
+            // 마우스 휠/터치패드 이벤트에서 수직 이동이 없으면 무시
+            if (Math.abs(e.deltaY) < 0.5) return;
+            e.preventDefault();
+            const max = menuList.scrollHeight - menuList.clientHeight;
+            target = clamp(target + e.deltaY, 0, Math.max(0, max));
+            startLoop();
+            isActive = true;
+            // 자동 정지(비활성) 타이머
+            clearTimeout(onWheel._timer);
+            onWheel._timer = setTimeout(() => {
+                isActive = false;
+            }, 300);
         }
 
-        return { freeze, unfreeze };
+        // 터치 지원 (간단한 터치 드래그)
+        let touchStartY = 0;
+        let touchStartTarget = 0;
+        function onTouchStart(e) {
+            if (!e.touches || !e.touches.length) return;
+            touchStartY = e.touches[0].clientY;
+            touchStartTarget = target;
+            // 터치 시 애니메이션 루프 유지
+            startLoop();
+        }
+        function onTouchMove(e) {
+            if (!e.touches || !e.touches.length) return;
+            e.preventDefault();
+            const dy = touchStartY - e.touches[0].clientY;
+            const max = menuList.scrollHeight - menuList.clientHeight;
+            target = clamp(touchStartTarget + dy, 0, Math.max(0, max));
+        }
+        function onTouchEnd() {
+            // 터치 종료 후 자연스레 루프가 멈춤
+        }
+
+        // 키보드/홈앤엔드 등도 native하게 동작하게 허용: 키 이벤트를 가로채지 않음
+
+        // 이벤트 바인딩
+        menuList.addEventListener("wheel", onWheel, { passive: false, capture: true });
+        menuList.addEventListener("touchstart", onTouchStart, { passive: false, capture: true });
+        menuList.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+        menuList.addEventListener("touchend", onTouchEnd, { passive: true, capture: true });
+
+        // 외부에서 제어할 수 있도록 전역 노출(디버그용)
+        win.__menuSmooth = {
+            start() {
+                startLoop();
+            },
+            stop() {
+                stopLoop();
+            },
+            isActive() {
+                return isActive;
+            },
+        };
     })();
 
+    // =========================================================
+    // 1) 인트로 - gsap
+    // =========================================================
     const ani1 = gsap.timeline();
 
-    ani1.from("#intro .main_title", { autoAlpha: 0 });
+    // ani1.from("#intro .main_title", { y: "110%" });
 
     ani1.to("#intro .visual_img_box video", {
         keyframes: [
-            { scale: 1, duration: 1 },
-            { scale: 0.55, duration: 1 },
-            { y: -100, duration: 1 },
-            { y: -400, duration: 1 },
+            // { scale: 1, duration: 1 },
+            // { scale: 0.55, duration: 1 },
+            // { y: -100, duration: 1 },
+            // { y: -400, duration: 1 },
+            { y: 0, duration: 1 },
+            { y: "-100%", duration: 2 },
+            // { duration: 0.5 },
         ],
     }).to(
         "#intro .main_title",
         {
-            keyframes: [
-                { y: 0, duration: 1 },
-                { y: "-60vh", duration: 2 },
-                { duration: 0.5 },
-            ],
+            keyframes: [{ duration: 1 }, { y: "25%", duration: 1 }, { y: "0", duration: 1 }],
         },
         0
     );
@@ -157,7 +161,7 @@
         animation: ani1,
         trigger: "#intro",
         start: "top top",
-        end: "+=1800",
+        end: "+=1200",
         scrub: true,
         pin: true,
         anticipatePin: 1,
@@ -165,39 +169,14 @@
     });
 
     /* =========================================================
-     * Sub Visual
+     * Sub Visual (오토플레이: #overview pin 최초 고정 후에는 항상 autoplay)
      * =======================================================*/
     const ani2 = gsap.timeline();
     const $overview = $("#overview");
-    
-    // Lenis 스크롤 제어를 위한 변수
-    let isPinning = false;
-    let boundaryCheckRAF = null;
-    
-    // pin 영역 내에서 관성 스크롤이 경계를 넘지 않도록 주기적으로 체크
-    function checkPinBoundaries() {
-        if (isPinning && overviewST && window.__lenis) {
-            const currentScrollY = window.scrollY || window.pageYOffset;
-            const startScroll = overviewST.start;
-            const endScroll = overviewST.end;
-            
-            // pin 영역의 경계를 벗어났을 때만 제한
-            if (currentScrollY < startScroll) {
-                // 시작 경계를 넘어가려고 하면 경계로 되돌림
-                window.__lenis.scrollTo(startScroll, { immediate: true });
-            } else if (currentScrollY > endScroll) {
-                // 끝 경계를 넘어가려고 하면 경계로 되돌림
-                window.__lenis.scrollTo(endScroll, { immediate: true });
-            }
-            // pin 영역 내부에서는 스크롤 허용 (stop() 호출하지 않음)
-        }
-        
-        if (isPinning) {
-            boundaryCheckRAF = requestAnimationFrame(checkPinBoundaries);
-        }
-    }
-    
-    const overviewST = ScrollTrigger.create({
+    let subVisualSwiper = null;
+    let subVisualHasStartedAutoplay = false;
+    // ScrollTrigger: pin이 최초 고정되면 autoplay 시작, 이후에는 종료하지 않음
+    ScrollTrigger.create({
         animation: ani2,
         trigger: "#overview",
         start: "top top",
@@ -206,52 +185,17 @@
         pin: true,
         anticipatePin: 1,
         invalidateOnRefresh: true,
-        onEnter() {
-            $overview.css({ overflow: "visible" });
-            isPinning = true;
-            // 커스텀 이벤트 발생: pin 진입 알림
-            window.dispatchEvent(new CustomEvent('overviewPinEnter'));
-            // 경계 체크 시작
-            if (boundaryCheckRAF) cancelAnimationFrame(boundaryCheckRAF);
-            checkPinBoundaries();
-        },
-        onEnterBack() {
-            $overview.css({ overflow: "visible" });
-            isPinning = true;
-            // 커스텀 이벤트 발생: pin 진입 알림
-            window.dispatchEvent(new CustomEvent('overviewPinEnter'));
-            // 경계 체크 시작
-            if (boundaryCheckRAF) cancelAnimationFrame(boundaryCheckRAF);
-            checkPinBoundaries();
-        },
-        // onUpdate 제거 - checkPinBoundaries에서 이미 경계 체크 중
-        onLeave() {
-            $overview.css({ overflow: "hidden" });
-            isPinning = false;
-            // 경계 체크 중지
-            if (boundaryCheckRAF) {
-                cancelAnimationFrame(boundaryCheckRAF);
-                boundaryCheckRAF = null;
-            }
-            // pin 영역 이탈 시 스크롤 상태 초기화 및 자연스러운 전환
-            window.dispatchEvent(new CustomEvent('overviewPinLeave'));
-        },
-        onLeaveBack() {
-            $overview.css({ overflow: "hidden" });
-            isPinning = false;
-            // 경계 체크 중지
-            if (boundaryCheckRAF) {
-                cancelAnimationFrame(boundaryCheckRAF);
-                boundaryCheckRAF = null;
-            }
-            // pin 영역 이탈 시 스크롤 상태 초기화 및 자연스러운 전환
-            window.dispatchEvent(new CustomEvent('overviewPinLeave'));
-        },
+        onEnter: playSubVisualAutoplayOnce,
+        onEnterBack: playSubVisualAutoplayOnce,
+        // onLeave/Back: autoplay를 멈추지 않는다
     });
-
-    // --------------------------------------------
-    // Helpers (DOM 보강, a11y, 인디케이터 페이드)
-    // --------------------------------------------
+    function playSubVisualAutoplayOnce() {
+        if (!subVisualHasStartedAutoplay && subVisualSwiper && subVisualSwiper.autoplay) {
+            subVisualSwiper.autoplay.start();
+            subVisualHasStartedAutoplay = true;
+        }
+    }
+    // Helpers - swiper 및 인디케이터 셋팅 (구조 단순화)
     function upgradeToSwiperDOM($container) {
         if ($container.children(".swiper-wrapper").length) {
             return $container.find(".swiper-slide").toArray();
@@ -270,7 +214,6 @@
         $container.append(wrapper);
         return Array.from($container.find(".swiper-slide"));
     }
-
     function decorateIndicatorsA11y($wrap, $indicators) {
         $wrap.attr({ role: "tablist", "aria-label": "섹션 슬라이드 인디케이터" });
         $indicators.each(function (idx) {
@@ -283,7 +226,6 @@
                 .css("opacity", idx === 0 ? 1 : 0);
         });
     }
-
     function fadeSetIndicator($indicators, activeIndex, immediate) {
         const DURATION = 280;
         $indicators.each(function (idx) {
@@ -297,368 +239,43 @@
             else $it.stop(true, true).animate({ opacity: toOpacity }, DURATION, "swing");
         });
     }
-
-    // 모바일에서는 .sub_titles_wrap > .sub_tilte_wrap 을
-    // 각 인덱스의 .sub_visual_item 첫 자녀로 이동시키고,
-    // 데스크톱에서는 원래 위치로 복구한다.
-    function relocateIndicatorsForMobile($host) {
-        const isMobile = window.matchMedia && window.matchMedia("(max-width: 720px)").matches;
-        const movedFlag = $host.attr("data-indicators-moved") === "true";
-        const $titlesWrap = $host.find(".sub_titles_wrap");
-        const $items = $host.find(".sub_visual_content .sub_visual_item");
-
-        if (isMobile && !movedFlag) {
-            const $indicators = $titlesWrap.find(".sub_tilte_wrap");
-            if ($items.length && $indicators.length) {
-                $items.each(function (i) {
-                    const $targetIndicator = $indicators.eq(i);
-                    if ($targetIndicator && $targetIndicator.length) {
-                        $(this).prepend($targetIndicator);
-                    }
-                });
-                $host.attr("data-indicators-moved", "true");
-            }
-        } else if (!isMobile && movedFlag) {
-            // 데스크톱으로 돌아오면 다시 원래 컨테이너로 복귀
-            const $movedIndicators = $host.find(".sub_visual_content .sub_visual_item > .sub_tilte_wrap");
-            if ($movedIndicators.length) {
-                $movedIndicators.each(function () {
-                    $titlesWrap.append(this);
-                });
-            }
-            $host.removeAttr("data-indicators-moved");
-        }
-    }
-
     const getActiveIndex = (sw) =>
         (sw && (typeof sw.realIndex === "number" ? sw.realIndex : sw.activeIndex)) || 0;
-
     $(function () {
         $(".sub_visual").each(function () {
             const $host = $(this);
             const $container = $host.find(".sub_visual_content");
             const $titlesWrap = $host.find(".sub_titles_wrap");
             if (!$container.length) return;
-
             const slideEls = upgradeToSwiperDOM($container);
-            // 모바일 환경이면 인디케이터를 각 슬라이드로 이동
-            relocateIndicatorsForMobile($host);
             const $indicators = $host.find(".sub_tilte_wrap");
             if (!$indicators.length) return;
-            // 래퍼 대신 아티클에 tablist 역할 부여(모바일 이동 시 단일 래퍼가 비어질 수 있음)
             decorateIndicatorsA11y($host, $indicators);
-
-            // ===== Swiper (세로) =====
-            const swiper = new Swiper($container.get(0), {
+            // Swiper 인스턴스 중복 방지 (존재시 초기화X, 1회만)
+            if (subVisualSwiper) return;
+            subVisualSwiper = new Swiper($container.get(0), {
                 direction: "vertical",
-                effect: "slide",
+                effect: "fade",
                 speed: 600,
                 loop: false,
-                allowTouchMove: false, // 커스텀 터치 처리로 변경
-                mousewheel: false, // 커스텀 휠 처리로 변경
+                allowTouchMove: true,
+                mousewheel: false,
                 resistanceRatio: 0,
+                autoplay: { delay: 4000, disableOnInteraction: false, pauseOnMouseEnter: false },
                 touchReleaseOnEdges: true,
                 observeParents: true,
                 observer: true,
                 on: {
                     afterInit(sw) {
                         fadeSetIndicator($indicators, getActiveIndex(sw), true);
+                        // 초기엔 autoplay를 멈춘다 (최초 pin 진입시만 시작)
+                        if (sw.autoplay) sw.autoplay.stop();
                     },
                     slideChange(sw) {
                         fadeSetIndicator($indicators, getActiveIndex(sw));
                     },
                 },
             });
-
-            // ===== 마우스휠/터치로 슬라이드 제어 + 페이지 스크롤 방향 제어 =====
-            const totalSlides = swiper.slides.length;
-            let isSliding = false; // 슬라이드 전환 중인지 확인
-            let wheelTimeout;
-            let lastSlideTransitionTime = 0; // 마지막 슬라이드 전환 시간
-            let touchStartY = 0;
-            let touchStartX = 0;
-            let touchStartTime = 0;
-            let isTouching = false;
-            const MIN_SWIPE_DISTANCE = 50; // 최소 스와이프 거리 (px)
-            const MAX_SWIPE_TIME = 300; // 최대 스와이프 시간 (ms)
-            
-            // pin 영역 진입 후 첫 스크롤 무시를 위한 변수 (단순화: 횟수 기반)
-            let pinEnterScrollCount = 0; // pin 진입 후 스크롤 이벤트 횟수
-            let isPinEntered = false; // pin 영역에 진입했는지 여부
-            let pinEnterTime = 0; // pin 진입 시점 (관성 스크롤 필터링용)
-            const PIN_ENTER_SCROLL_IGNORE_COUNT = 1; // pin 진입 후 무시할 스크롤 이벤트 횟수 (2->1로 단축)
-            const PIN_ENTER_INERTIA_FILTER = 50; // pin 진입 직후 관성 스크롤 필터링 시간 (ms) (80->50으로 단축)
-            
-            let lastCheckedIndex = -1; // 마지막으로 확인한 슬라이드 인덱스
-
-            function handleSlideNavigation(direction, isTouch = false) {
-                // ScrollTrigger가 #overview 영역에 pin되어 있는지 확인
-                if (!overviewST || !overviewST.isActive) {
-                    // pin 영역을 벗어나면 상태 리셋
-                    if (isPinEntered) {
-                        isPinEntered = false;
-                        pinEnterScrollCount = 0;
-                        pinEnterTime = 0;
-                        lastSlideTransitionTime = 0; // 슬라이드 전환 시간 리셋
-                    }
-                    return false;
-                }
-
-                // 이미 슬라이드 전환 중이면 무시
-                if (isSliding) return true;
-
-                const currentIndex = getActiveIndex(swiper);
-                const isFirstSlide = currentIndex === 0;
-                const isLastSlide = currentIndex === totalSlides - 1;
-                const currentTime = Date.now();
-                
-                // 빠른 연속 스크롤 차단: 슬라이드 전환 중이거나 최근에 전환이 있었으면 차단
-                if (isSliding) return true;
-                if (lastSlideTransitionTime > 0 && (currentTime - lastSlideTransitionTime) < 500) {
-                    return true; // 최근 슬라이드 전환 후 500ms 내 스크롤 차단
-                }
-
-                // pin 영역 진입 후 첫 스크롤 무시 로직 (단순화: 횟수 기반)
-                if (isPinEntered && pinEnterTime > 0) {
-                    const timeSincePinEnter = currentTime - pinEnterTime;
-                    
-                    // 1. pin 진입 직후 짧은 시간 내의 스크롤은 관성 스크롤으로 무시
-                    if (timeSincePinEnter < PIN_ENTER_INERTIA_FILTER) {
-                        return true;
-                    }
-                    
-                    // 2. 관성 스크롤 필터링 이후: 횟수 기반으로 처리
-                    pinEnterScrollCount++;
-                    
-                    if (pinEnterScrollCount < PIN_ENTER_SCROLL_IGNORE_COUNT) {
-                        // 지정된 횟수 미만이면 무시
-                        return true;
-                    }
-                    // 지정된 횟수 이상이면 정상 동작 (아래 로직 계속)
-                }
-
-                // 슬라이드가 변경되면 상태 업데이트
-                if (currentIndex !== lastCheckedIndex) {
-                    lastCheckedIndex = currentIndex;
-                }
-
-                // 위로 스크롤/스와이프 (direction === 'up')
-                if (direction === 'up') {
-                    if (isFirstSlide) {
-                        // 첫 페이지: 페이지 스크롤 허용
-                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
-                    } else {
-                        // 첫 페이지가 아닐 때 (마지막 포함): 무조건 Swiper 슬라이드만 제어, 페이지 스크롤 완전 차단
-                        isSliding = true;
-                        lastSlideTransitionTime = currentTime; // 슬라이드 전환 시간 기록
-                        swiper.slidePrev();
-                        clearTimeout(wheelTimeout);
-                        wheelTimeout = setTimeout(() => {
-                            isSliding = false;
-                        }, 600);
-                        return true; // 이벤트 차단 (페이지 스크롤 완전 차단)
-                    }
-                }
-                // 아래로 스크롤/스와이프 (direction === 'down')
-                else if (direction === 'down') {
-                    if (isLastSlide) {
-                        // 마지막 페이지: 페이지 스크롤 허용
-                        return false; // 이벤트를 그대로 전달하여 페이지 스크롤 허용
-                    } else {
-                        // 마지막 페이지가 아닐 때: Swiper 슬라이드만 제어
-                        isSliding = true;
-                        lastSlideTransitionTime = currentTime; // 슬라이드 전환 시간 기록
-                        swiper.slideNext();
-                        clearTimeout(wheelTimeout);
-                        wheelTimeout = setTimeout(() => {
-                            isSliding = false;
-                        }, 600);
-                        return true; // 이벤트 차단
-                    }
-                }
-                return false;
-            }
-
-            function handleWheel(e) {
-                if (!overviewST || !overviewST.isActive) return;
-
-                const deltaY = e.deltaY;
-                const direction = deltaY < 0 ? 'up' : 'down';
-                const shouldPrevent = handleSlideNavigation(direction, false);
-
-                if (shouldPrevent) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            }
-
-            let touchDeltaY = 0;
-            let touchDeltaX = 0;
-
-            function handleTouchStart(e) {
-                // ScrollTrigger가 활성화되지 않았어도 기본 터치는 허용
-                if (!overviewST) return;
-                
-                const touch = e.touches[0];
-                if (!touch) return;
-                
-                touchStartY = touch.clientY;
-                touchStartX = touch.clientX;
-                touchStartTime = Date.now();
-                isTouching = true;
-                touchDeltaY = 0;
-                touchDeltaX = 0;
-            }
-
-            function handleTouchMove(e) {
-                if (!isTouching) return;
-                
-                const touch = e.touches[0];
-                if (!touch) return;
-
-                const currentY = touch.clientY;
-                const currentX = touch.clientX;
-                touchDeltaY = currentY - touchStartY;
-                touchDeltaX = currentX - touchStartX;
-                const absDeltaY = Math.abs(touchDeltaY);
-                const absDeltaX = Math.abs(touchDeltaX);
-
-                // 수평 스와이프가 더 크면 무시 (가로 스와이프는 다른 용도)
-                if (absDeltaX > absDeltaY) return;
-
-                // ScrollTrigger가 활성화되어 있을 때만 페이지 스크롤 제어
-                if (overviewST && overviewST.isActive) {
-                    const currentIndex = getActiveIndex(swiper);
-                    const isFirstSlide = currentIndex === 0;
-                    const isLastSlide = currentIndex === totalSlides - 1;
-                    const direction = touchDeltaY > 0 ? 'up' : 'down';
-
-                    // 첫/마지막 슬라이드에서 페이지 스크롤 방향인지 확인
-                    if ((isFirstSlide && touchDeltaY > 0) || (isLastSlide && touchDeltaY < 0)) {
-                        // 페이지 스크롤 허용 여부를 handleSlideNavigation으로 확인
-                        // 단, handleSlideNavigation은 실제 스와이프 완료 시 호출되므로
-                        // 여기서는 일단 페이지 스크롤 방향일 때는 preventDefault 하지 않음
-                        // (handleTouchEnd에서 최종 결정)
-                        if (absDeltaY > 10) {
-                            // 페이지 스크롤을 허용하기 위해 preventDefault 하지 않음
-                            // 다만 관성 스크롤은 차단
-                            const timeSincePinEnter = pinEnterTime > 0 ? (Date.now() - pinEnterTime) : Infinity;
-                            if (timeSincePinEnter < PIN_ENTER_INERTIA_FILTER) {
-                                // pin 진입 후 관성 스크롤은 차단
-                                e.preventDefault();
-                                e.stopPropagation();
-                            }
-                            // 그 외에는 페이지 스크롤 허용 (preventDefault 하지 않음)
-                        }
-                        return;
-                    }
-
-                    // 그 외의 경우: Swiper 슬라이드 제어를 위해 터치 이벤트 차단
-                    if (absDeltaY > 10) { // 작은 움직임도 차단하여 Swiper 기본 동작 방지
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                } else {
-                    // ScrollTrigger가 비활성화되어 있으면 모든 터치를 차단하지 않음
-                    // Swiper 기본 동작 허용
-                }
-            }
-
-            function handleTouchEnd(e) {
-                if (!isTouching) return;
-
-                const absDeltaY = Math.abs(touchDeltaY);
-                const absDeltaX = Math.abs(touchDeltaX);
-                const swipeTime = Date.now() - touchStartTime;
-
-                // 수평 스와이프가 더 크면 무시
-                if (absDeltaX > absDeltaY) {
-                    resetTouchState();
-                    return;
-                }
-
-                // 최소 거리와 시간 조건을 만족하는 스와이프만 처리
-                if (absDeltaY > MIN_SWIPE_DISTANCE && swipeTime < MAX_SWIPE_TIME) {
-                    const direction = touchDeltaY > 0 ? 'up' : 'down'; // touchDeltaY > 0이면 위로 스와이프 (손가락이 아래로 이동)
-                    const shouldPrevent = handleSlideNavigation(direction, true);
-
-                    if (shouldPrevent) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                }
-
-                resetTouchState();
-            }
-
-            function resetTouchState() {
-                setTimeout(() => {
-                    isTouching = false;
-                    touchStartY = 0;
-                    touchStartX = 0;
-                    touchDeltaY = 0;
-                    touchDeltaX = 0;
-                    touchStartTime = 0;
-                }, 50);
-            }
-
-            // #overview 영역과 Swiper 컨테이너에 이벤트 리스너 추가
-            const overviewEl = $overview.get(0);
-            const swiperEl = $container.get(0);
-            
-            if (overviewEl) {
-                // 마우스휠 (capture로 먼저 처리)
-                overviewEl.addEventListener("wheel", handleWheel, { passive: false, capture: true });
-                // 터치 이벤트
-                overviewEl.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
-                overviewEl.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
-                overviewEl.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
-                overviewEl.addEventListener("touchcancel", resetTouchState, { passive: true, capture: true });
-            }
-            
-            // Swiper 컨테이너에도 추가 (더 확실한 이벤트 캡처)
-            if (swiperEl && swiperEl !== overviewEl) {
-                swiperEl.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
-                swiperEl.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
-                swiperEl.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
-                swiperEl.addEventListener("touchcancel", resetTouchState, { passive: true, capture: true });
-            }
-
-            // pin 진입 이벤트 리스너: pin 진입 시 상태 초기화
-            window.addEventListener("overviewPinEnter", function() {
-                isPinEntered = true;
-                pinEnterScrollCount = 0; // 횟수 리셋
-                pinEnterTime = Date.now(); // 관성 스크롤 필터링용
-            });
-
-            // pin 이탈 이벤트 리스너: pin 이탈 시 상태 초기화 및 스크롤 자연스럽게 전환
-            window.addEventListener("overviewPinLeave", function() {
-                isPinEntered = false;
-                pinEnterScrollCount = 0;
-                pinEnterTime = 0;
-                lastSlideTransitionTime = 0; // 슬라이드 전환 시간 리셋
-                // 스크롤이 자연스럽게 진행되도록 상태 초기화
-                isSliding = false;
-                if (wheelTimeout) {
-                    clearTimeout(wheelTimeout);
-                    wheelTimeout = null;
-                }
-            });
-
-            // 레이아웃 변경 대응
-            let raf;
-            const safeRefresh = () => {
-                cancelAnimationFrame(raf);
-                raf = requestAnimationFrame(() => ScrollTrigger.refresh());
-            };
-            window.addEventListener("resize", safeRefresh);
-            window.addEventListener("orientationchange", safeRefresh);
-
-            // 반응형 전환 시 인디케이터 재배치
-            const relocateOnResize = () => {
-                relocateIndicatorsForMobile($host);
-            };
-            window.addEventListener("resize", relocateOnResize);
         });
     });
 
@@ -1072,14 +689,14 @@ $(function () {
 
         if ($(window).width() <= 720) {
             // 모바일용
-            $intro.attr("src", "./images/main/mo_all_source_down.mp4");
+            $intro.attr("src", "./images/main/1118_mo.mp4");
             $subVisualImg.eq(0).attr("src", "./images/main/sub_visual_mo_1.svg");
             $subVisualImg.eq(1).attr("src", "./images/main/sub_visual_mo_2.svg");
             $subVisualImg.eq(2).attr("src", "./images/main/sub_visual_mo_3.svg");
             $subVisualImg.eq(3).attr("src", "./images/main/sub_visual_mo_4.svg");
         } else {
             // PC용
-            $intro.attr("src", "./images/main/pc_all_source_down.mp4");
+            $intro.attr("src", "./images/main/1118_pc.mp4");
             $subVisualImg.eq(0).attr("src", "./images/main/sub_visual_1.svg");
             $subVisualImg.eq(1).attr("src", "./images/main/sub_visual_2.svg");
             $subVisualImg.eq(2).attr("src", "./images/main/sub_visual_3.svg");
@@ -1095,7 +712,7 @@ $(function () {
         const currentWidth = $(window).width();
         if (currentWidth !== lastWidth) {
             // 가로폭이 달라졌을 때만 호출
-            updateMainVisual(); 
+            updateMainVisual();
             setRealVH();
             lastWidth = currentWidth; // 이전 폭 갱신
         }
@@ -1103,4 +720,4 @@ $(function () {
 });
 
 // 모바일에서 로딩시 헤더 움직이지 않는 문제 해결용
-document.head.insertAdjacentHTML("beforeend", `<style>header{opacity:1;}</style>`);
+// document.head.insertAdjacentHTML("beforeend", `<style>header{opacity:1;}</style>`);

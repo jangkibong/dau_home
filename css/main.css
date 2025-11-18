@@ -1,4 +1,3 @@
-
 html,
 body {
     overscroll-behavior: none;
@@ -243,20 +242,22 @@ body {
     opacity: 0.7;
 }
 .section .main_title {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     position: absolute;
-    top: calc(var(--vh, 1vh) * 100);
+    top: 0;
+    bottom: 0;
+    /* left: 50%; */
     width: 100vw;
-    left: 50%;
-    bottom: 50%;
     text-align: center;
     color: var(--bk);
     font-family: "NewYork", serif;
     font-size: 11.25em; /* 180px */
     line-height: 1.3;
     font-weight: 400;
-    transform: translate(-50%, 50%);
+    transform: translate3d(0, 100%, 0);
     z-index: -1;
-    /* transition: all 0.5s ease-in-out; */
 }
 .section .main_title .slogan {
     display: block;
@@ -364,17 +365,19 @@ body {
     justify-content: flex-end;
 }
 
-/* 제목은 '위치'는 기존 CSS대로, '투명도'만 전환 */
+/* 제목 '위치, 투명도' 전환 */
 .sub_visual .sub_tilte_wrap {
     /* opacity: 0;
     visibility: hidden; */
-    transition: opacity 700ms ease, visibility 700ms step-end;
+    transform: translateY(20em);
+    transition: opacity 500ms ease, visibility 500ms step-end, transform 1000ms ease-out;
     will-change: opacity, visibility;
 }
 .sub_visual .sub_tilte_wrap.is-active {
+    transform: translateY(0);
     opacity: 1;
     visibility: visible;
-    transition: opacity 700ms ease, visibility 0s step-start;
+    transition: opacity 700ms ease, visibility 0s step-start, transform 500ms ease;
 }
 
 /* sub_visual - end */
@@ -707,9 +710,6 @@ body {
     .section .main_title {
         font-size: 7.5em;
     }
-    .section .main_title .slogan {
-        top: -1em;
-    }
     .section.fullpage {
         height: calc(var(--vh, 1vh) * 100);
         overflow: visible;
@@ -718,27 +718,26 @@ body {
         margin-top: 50px;
     }
 
-
     .sub_visual > .sub_titles_wrap {
-        display: none;
+        /* display: none; */
     }
 
     .sub_visual h3 {
         font-size: 1.4rem;
         left: 2rem;
         top: 2rem;
-        transition: margin 0.5s 
+        transition: margin 0.5s;
     }
     header:not(.is-hidden) + #contents .sub_visual h3 {
         margin-top: 26px;
     }
     .sub_visual h3 {
-        transition: margin 0.5s 
+        transition: margin 0.5s;
     }
     .sub_visual .swiper {
-        /* height: 100vw; */
-        min-height: 50vh;
-        /* max-height: 50vh; */
+        height: 100vw;
+        /* min-height: 50vh; */
+        max-height: 50vh;
         max-width: none;
     }
 
@@ -756,7 +755,12 @@ body {
         align-items: flex-start;
         padding: 0 1.8rem 0 1.4rem;
         margin-left: 0;
-        bottom: 50%;
+        bottom: 0;
+        transform: translateX(10em);
+    }
+
+    .sub_visual .sub_tilte_wrap.is-active {
+        transform: translateX(0);
     }
 
     .sub_visual {

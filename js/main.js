@@ -105,6 +105,7 @@
             const dy = touchStartY - e.touches[0].clientY;
             const max = menuList.scrollHeight - menuList.clientHeight;
             target = clamp(touchStartTarget + dy, 0, Math.max(0, max));
+            startLoop(); // 터치 이동 중 루프 활성화
         }
         function onTouchEnd() {
             // 터치 종료 후 자연스레 루프가 멈춤

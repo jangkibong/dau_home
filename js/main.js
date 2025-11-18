@@ -141,18 +141,18 @@
 
     ani1.to("#intro .visual_img_box video", {
         keyframes: [
-            // { scale: 1, duration: 1 },
-            // { scale: 0.55, duration: 1 },
-            // { y: -100, duration: 1 },
-            // { y: -400, duration: 1 },
+            { duration: 1 }, 
             { y: 0, duration: 1 },
-            { y: "-100%", duration: 2 },
-            // { duration: 0.5 },
+            { y: "-100%", duration: 3 },
         ],
     }).to(
         "#intro .main_title",
         {
-            keyframes: [{ duration: 1 }, { y: "25%", duration: 1 }, { y: "0", duration: 1 }],
+            keyframes: [
+                { y: "25%", duration: 1 },
+                { y: "0", duration: 1.5 },
+                { duration: 2 }, 
+            ],
         },
         0
     );

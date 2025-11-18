@@ -39,7 +39,7 @@
         const menuList = document.querySelector("header .menu > ul");
         if (!menuList) return;
 
-        const ease = 0.12; // 작을수록 더 느리게 따라감
+        const ease = 1; // 작을수록 더 느리게 따라감
         let target = menuList.scrollTop;
         let current = target;
         let rafId = null;

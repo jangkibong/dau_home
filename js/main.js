@@ -180,7 +180,7 @@
     ScrollTrigger.create({
         animation: ani2,
         trigger: "#overview",
-        start: "top bottom-=200",
+        start: "top bottom-=300",
         end: "+=0",
         scrub: true,
         pin: false,
@@ -277,7 +277,7 @@
     ScrollTrigger.create({
         animation: ani3,
         trigger: "#project_wrap",
-        start: "top bottom-=200",
+        start: "top bottom-=300",
         end: "+=0",
         scrub: true,
         pin: false,
@@ -319,7 +319,7 @@
             // 핀 트리거와 동일한 영역/세팅을 사용해 라이프사이클만 담당하는 ST 생성
             ScrollTrigger.create({
                 trigger: "#project_wrap",
-                start: "top bottom-=200",
+                start: "top bottom-=300",
                 end: "+=0",
                 // pin: true  // ← 애니메이션용 ST에서 이미 pin을 쓰고 있으므로 여기서는 생략
                 onEnter: handleEnterLikePin,
@@ -554,7 +554,7 @@
         ScrollTrigger.create({
             animation: ani4,
             trigger: "#tec",
-            start: "top bottom-=200",
+            start: "top bottom-=300",
             end: "+=0",
             scrub: true,
             pin: false,
@@ -577,7 +577,7 @@
         ScrollTrigger.create({
             animation: ani4,
             trigger: "#tec",
-            start: "top bottom-=200",
+            start: "top bottom-=300",
             end: "+=0",
             scrub: true,
             pin: false,
@@ -624,7 +624,7 @@
     ScrollTrigger.create({
         animation: ani5,
         trigger: "#pr",
-        start: "top bottom-=200",
+        start: "top bottom-=300",
         end: "+=0",
         scrub: true,
         pin: false,

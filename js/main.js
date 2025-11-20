@@ -136,38 +136,38 @@
     // =========================================================
     // 1) 인트로 - gsap
     // =========================================================
-    const ani1 = gsap.timeline();
+    // const ani1 = gsap.timeline();
 
-    // ani1.from("#intro .main_title", { y: "110%" });
+    // // ani1.from("#intro .main_title", { y: "110%" });
 
-    ani1.to("#intro .visual_img_box video", {
-        keyframes: [
-            { duration: 1 }, 
-            { y: 0, duration: 1 },
-            { y: "-100%", duration: 3 },
-        ],
-    }).to(
-        "#intro .main_title",
-        {
-            keyframes: [
-                { y: "25%", duration: 1 },
-                { y: "0", duration: 1.5 },
-                { duration: 2 }, 
-            ],
-        },
-        0
-    );
+    // ani1.to("#intro .visual_img_box video", {
+    //     keyframes: [
+    //         { duration: 1 }, 
+    //         { y: 0, duration: 1 },
+    //         { y: "-100%", duration: 3 },
+    //     ],
+    // }).to(
+    //     "#intro .main_title",
+    //     {
+    //         keyframes: [
+    //             { y: "25%", duration: 1 },
+    //             { y: "0", duration: 1.5 },
+    //             { duration: 2 }, 
+    //         ],
+    //     },
+    //     0
+    // );
 
-    ScrollTrigger.create({
-        animation: ani1,
-        trigger: "#intro",
-        start: "top top",
-        end: "+=1600",
-        scrub: true,
-        pin: true,
-        anticipatePin: 1,
-        markers: false,
-    });
+    // ScrollTrigger.create({
+    //     animation: ani1,
+    //     trigger: "#intro",
+    //     start: "top top",
+    //     end: "+=1600",
+    //     scrub: true,
+    //     pin: true,
+    //     anticipatePin: 1,
+    //     markers: false,
+    // });
 
     /* =========================================================
      * Sub Visual (오토플레이: #overview pin 최초 고정 후에는 항상 autoplay)
@@ -180,22 +180,14 @@
     ScrollTrigger.create({
         animation: ani2,
         trigger: "#overview",
-        start: "top top",
-        end: "+=800",
+        start: "top bottom-=200",
+        end: "+=0",
         scrub: true,
-        pin: true,
+        pin: false,
         anticipatePin: 1,
         invalidateOnRefresh: true,
-        onEnter: playSubVisualAutoplayOnce,
-        onEnterBack: playSubVisualAutoplayOnce,
-        // onLeave/Back: autoplay를 멈추지 않는다
+        autoplay: true
     });
-    function playSubVisualAutoplayOnce() {
-        if (!subVisualHasStartedAutoplay && subVisualSwiper && subVisualSwiper.autoplay) {
-            subVisualSwiper.autoplay.start();
-            subVisualHasStartedAutoplay = true;
-        }
-    }
     // Helpers - swiper 및 인디케이터 셋팅 (구조 단순화)
     function upgradeToSwiperDOM($container) {
         if ($container.children(".swiper-wrapper").length) {
@@ -269,8 +261,6 @@
                 on: {
                     afterInit(sw) {
                         fadeSetIndicator($indicators, getActiveIndex(sw), true);
-                        // 초기엔 autoplay를 멈춘다 (최초 pin 진입시만 시작)
-                        if (sw.autoplay) sw.autoplay.stop();
                     },
                     slideChange(sw) {
                         fadeSetIndicator($indicators, getActiveIndex(sw));
@@ -281,19 +271,26 @@
     });
 
     /* =========================================================
-     * 3) project Swiper - gsap (핀 고정) + Swiper
+     * 3) project Swiper - gsap
      * =======================================================*/
     const ani3 = gsap.timeline();
-
     ScrollTrigger.create({
         animation: ani3,
         trigger: "#project_wrap",
-        start: "top top",
-        end: "+=800",
+        start: "top bottom-=200",
+        end: "+=0",
         scrub: true,
-        pin: true,
+        pin: false,
         anticipatePin: 1,
         invalidateOnRefresh: true,
+        onEnter() {
+            const el = document.querySelector("#project_wrap h3.title");
+            if (el) el.classList.add("active");
+        },
+        onEnterBack() {
+            const el = document.querySelector("#project_wrap h3.title");
+            if (el) el.classList.add("active");
+        }
     });
     /* =========================================================
      * 6) #project Horizontal Swiper
@@ -322,8 +319,8 @@
             // 핀 트리거와 동일한 영역/세팅을 사용해 라이프사이클만 담당하는 ST 생성
             ScrollTrigger.create({
                 trigger: "#project_wrap",
-                start: "top top",
-                end: "+=800",
+                start: "top bottom-=200",
+                end: "+=0",
                 // pin: true  // ← 애니메이션용 ST에서 이미 pin을 쓰고 있으므로 여기서는 생략
                 onEnter: handleEnterLikePin,
                 onEnterBack: handleEnterLikePin,
@@ -431,7 +428,7 @@
             const sw = new Swiper($swiper.get(0), {
                 direction: "horizontal",
                 effect: "slide",
-                speed: 700,
+                speed: 400,
                 loop: true,
                 initialSlide: initial,
                 allowTouchMove: true,
@@ -557,12 +554,20 @@
         ScrollTrigger.create({
             animation: ani4,
             trigger: "#tec",
-            start: "top top",
-            end: "+=800",
+            start: "top bottom-=200",
+            end: "+=0",
             scrub: true,
-            pin: true,
+            pin: false,
             anticipatePin: 1,
             invalidateOnRefresh: true,
+            onEnter() {
+                const el = document.querySelector("#tec h3.title");
+                if (el) el.classList.add("active");
+            },
+            onEnterBack() {
+                const el = document.querySelector("#tec h3.title");
+                if (el) el.classList.add("active");
+            }
         });
     });
 
@@ -572,12 +577,20 @@
         ScrollTrigger.create({
             animation: ani4,
             trigger: "#tec",
-            start: "top top",
-            end: "+=800",
+            start: "top bottom-=200",
+            end: "+=0",
             scrub: true,
             pin: false,
             anticipatePin: 1,
             invalidateOnRefresh: true,
+            onEnter() {
+                const el = document.querySelector("#tec h3.title");
+                if (el) el.classList.add("active");
+            },
+            onEnterBack() {
+                const el = document.querySelector("#tec h3.title");
+                if (el) el.classList.add("active");
+            }
         });
     });
 
@@ -607,6 +620,25 @@
     // -----------------------------------------------------
     // 8) PR 가로 스와이퍼 (#pr .section_contents .swiper)
     // -----------------------------------------------------
+    const ani5 = gsap.timeline();
+    ScrollTrigger.create({
+        animation: ani5,
+        trigger: "#pr",
+        start: "top bottom-=200",
+        end: "+=0",
+        scrub: true,
+        pin: false,
+        anticipatePin: 1,
+        invalidateOnRefresh: true,
+        onEnter() {
+            const el = document.querySelector("#pr h3.title");
+            if (el) el.classList.add("active");
+        },
+        onEnterBack() {
+            const el = document.querySelector("#pr h3.title");
+            if (el) el.classList.add("active");
+        }
+    });
     (function initPRSwiper() {
         const prHost = document.querySelector("#pr .section_contents .swiper");
         if (!prHost) return;

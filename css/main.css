@@ -68,15 +68,19 @@ body {
 } */
 
 /* intro -start */
+.section#intro{
+    height: calc(var(--vh, 1vh) * 200);
+}
 .section .main_visual.intro {
     /* position: fixed; */
     width: 100vw;
     height: calc(var(--vh, 1vh) * 100);
-    overflow: hidden;
+    /* overflow: hidden; */
     z-index: 100;
 }
 .section .intro .visual_img_box {
     display: flex;
+    overflow: hidden;
     width: 100%;
     height: 100%;
     justify-content: center;
@@ -408,6 +412,17 @@ body {
 .swiper_wrap .swiper_item_header {
     position: relative;
     text-align: right;
+}
+
+h3.title{
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.5s ease;
+}
+
+h3.title.active{
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .swiper_wrap .swiper_item_header .title {

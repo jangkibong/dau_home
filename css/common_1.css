@@ -267,6 +267,7 @@ header .menu > ul {
     display: flex;
     flex-wrap: wrap;
     gap: 28px;
+    overflow: auto;
     flex: 1;
     padding-left: 28px;
 }

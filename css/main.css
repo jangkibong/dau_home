@@ -417,7 +417,7 @@ body {
 h3.title{
     opacity: 0;
     transform: translateY(-10px);
-    transition: all 0.5s ease;
+    transition: all 0.8s ease;
 }
 
 h3.title.active{
